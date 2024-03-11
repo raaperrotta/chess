@@ -1,6 +1,6 @@
 use rand::rngs::ThreadRng;
 use rand::seq::IteratorRandom;
-use crate::{between, get_bishop_rays, line, magic::get_sense_mask, square, BitBoard, Board, ChessMove, MoveGen, Piece, Square, EMPTY};
+use crate::{between, get_bishop_rays, line, Color, magic::get_sense_mask, square, BitBoard, Board, ChessMove, MoveGen, Piece, Square, EMPTY};
 
 
 pub struct SenseResult {
@@ -135,5 +135,57 @@ pub fn simulate_sense(board: &Board, sense: Square) -> SenseResult {
         bishop: board.pieces(Piece::Bishop) & opponent_pieces & sense_bb,
         queen: board.pieces(Piece::Queen) & opponent_pieces & sense_bb,
         king: board.pieces(Piece::King) & opponent_pieces & sense_bb,
+    }
+}
+
+pub fn do_sense<T>(board: &mut Board, active: &mut T)
+where T: Player {
+    let sense = active.choose_sense();
+    let result = simulate_sense(&board, sense);
+    active.handle_sense_result(&result);
+}
+
+pub fn do_move<T>(board: &mut Board, active: &mut T, passive: &mut T)
+where T: Player {
+    let requested_move = active.choose_move();
+    println!("{:?}", requested_move.map(|m| m.to_string()));
+    let result = simulate_move(&board, requested_move);
+    println!("{:?} {:?}", result.taken_move.map(|m| m.to_string()), result.capture_square.map(|s| s.to_string()));
+    match result.taken_move {
+        Some(m) => board.make_move_mut(m),
+        None => board.null_move_mut(),
+    }
+    println!("{}", board.to_string());
+    active.handle_move_result(&result);
+    passive.handle_opponent_capture(&result.capture_square);
+}
+
+pub fn do_half_turn<T>(board: &mut Board, active: &mut T, passive: &mut T)
+where T: Player {
+    do_sense(board, active);
+    do_move(board, active, passive);
+}
+
+pub fn play_rbc<T>(white: &mut T, black: &mut T) -> Option<Color>
+where T: Player {
+    let mut board = Board::default();
+    // TODO add 50 move rule (pawn move or capture resets count)
+
+    println!("{}", board.to_string());
+    do_move(&mut board, white, black);
+
+    let mut active = black;
+    let mut passive = white;
+    loop {
+        println!("{}", board.to_string());
+        do_half_turn(&mut board, active, passive);
+
+        if (board.pieces(Piece::King) & board.color_combined(board.side_to_move())) == EMPTY {
+            return Some(!board.side_to_move());
+        }
+
+        let tmp = active;
+        active = passive;
+        passive = tmp;
     }
 }
