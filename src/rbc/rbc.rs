@@ -1,6 +1,4 @@
-use rand::rngs::ThreadRng;
-use rand::seq::IteratorRandom;
-use crate::{between, get_bishop_rays, line, Color, magic::get_sense_mask, square, BitBoard, Board, ChessMove, MoveGen, Piece, Square, EMPTY};
+use crate::{between, Color, magic::get_sense_mask, BitBoard, Board, ChessMove, Piece, Square, EMPTY, MoveGen};
 
 
 pub struct SenseResult {
@@ -24,42 +22,6 @@ pub trait Player {
     fn handle_sense_result(&mut self, sense_result: &SenseResult);
     fn choose_move(&mut self) -> Option<ChessMove>;
     fn handle_move_result(&mut self, result: &MoveResult);
-}
-
-pub struct RandomPlayer{
-    rng: ThreadRng,
-    board: Board,
-}
-impl RandomPlayer {
-    pub fn new() -> Self {
-        Self {
-            rng: rand::thread_rng(),
-            board: Board::default(),
-        }
-    }
-}
-impl Player for RandomPlayer {
-    fn handle_opponent_capture(&mut self, capture: &Option<Square>) {
-        self.board.null_move_mut();
-        if let Some(square) = capture {
-            self.board = self.board.clear_square(*square).expect(&format!("expected to find a piece at opponent capture square {square}"));
-        }
-    }
-    fn choose_sense(&mut self) -> Square { Square::B2 }
-    fn handle_sense_result(&mut self, _sense_result: &SenseResult) {}
-    fn choose_move(&mut self) -> Option<ChessMove> { 
-        let mut moves: Vec<_> = MoveGen::new_blind_moves(&self.board).map(|m| Some(m)).collect();
-        moves.push(None);
-        let move_string: Vec<_> = moves.iter().map(|m| m.map(|m| m.to_string())).collect();
-        println!("{:?}", move_string);
-        *moves.iter().choose(&mut self.rng).unwrap()
-    }
-    fn handle_move_result(&mut self, result: &MoveResult) {
-        match result.taken_move {
-            Some(taken_move) => self.board.make_move_mut(taken_move),
-            None => self.board.null_move_mut(),
-        };
-    }
 }
 
 fn simulate_simple_move(board: &Board, requested_move: ChessMove) -> MoveResult {
@@ -145,10 +107,14 @@ where T: Player {
     active.handle_sense_result(&result);
 }
 
-pub fn do_move<T>(board: &mut Board, active: &mut T, passive: &mut T)
-where T: Player {
+pub fn do_move<T, S>(board: &mut Board, active: &mut T, passive: &mut S) -> Result<(), &'static str>
+where T: Player, S: Player {
+    let mut allowed_moves = MoveGen::new_blind_moves(board);
     let requested_move = active.choose_move();
     println!("{:?}", requested_move.map(|m| m.to_string()));
+    if requested_move.is_some() && !allowed_moves.any(|m| m == requested_move.unwrap()) {
+        return Err("Player requested a move that was not allowed!");
+    }
     let result = simulate_move(&board, requested_move);
     println!("{:?} {:?}", result.taken_move.map(|m| m.to_string()), result.capture_square.map(|s| s.to_string()));
     match result.taken_move {
@@ -158,34 +124,53 @@ where T: Player {
     println!("{}", board.to_string());
     active.handle_move_result(&result);
     passive.handle_opponent_capture(&result.capture_square);
+    Ok(())
 }
 
-pub fn do_half_turn<T>(board: &mut Board, active: &mut T, passive: &mut T)
-where T: Player {
+pub fn do_half_turn<T, S>(board: &mut Board, active: &mut T, passive: &mut S) -> Result<(), &'static str>
+where T: Player, S: Player {
     do_sense(board, active);
-    do_move(board, active, passive);
+    do_move(board, active, passive)?;
+    Ok(())
 }
 
-pub fn play_rbc<T>(white: &mut T, black: &mut T) -> Option<Color>
-where T: Player {
+
+pub enum GameOverReason {
+    KingCapture(Color), // Color of the player that did the capturing (the winner)
+    IllegalMove(Color), // Color of the player that made the illegal move request (the loser)
+    FiftyMoveDraw,
+}
+
+pub fn play_rbc<T, S>(white: &mut T, black: &mut S) -> GameOverReason
+where T: Player, S: Player {
     let mut board = Board::default();
     // TODO add 50 move rule (pawn move or capture resets count)
 
     println!("{}", board.to_string());
-    do_move(&mut board, white, black);
+    let result = do_move(&mut board, white, black);
+    if result.is_err() {
+        return GameOverReason::IllegalMove(Color::White);
+    }
 
-    let mut active = black;
-    let mut passive = white;
     loop {
         println!("{}", board.to_string());
-        do_half_turn(&mut board, active, passive);
-
-        if (board.pieces(Piece::King) & board.color_combined(board.side_to_move())) == EMPTY {
-            return Some(!board.side_to_move());
+        let result = do_half_turn(&mut board, black, white);
+        if result.is_err() {
+            return GameOverReason::IllegalMove(Color::Black);
         }
 
-        let tmp = active;
-        active = passive;
-        passive = tmp;
+        if (board.pieces(Piece::King) & board.color_combined(board.side_to_move())) == EMPTY {
+            return GameOverReason::KingCapture(Color::Black);
+        }
+
+        println!("{}", board.to_string());
+        let result = do_half_turn(&mut board, white, black);
+        if result.is_err() {
+            return GameOverReason::IllegalMove(Color::White);
+        }
+
+        if (board.pieces(Piece::King) & board.color_combined(board.side_to_move())) == EMPTY {
+            return GameOverReason::KingCapture(Color::White);
+        }
     }
 }
