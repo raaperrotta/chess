@@ -20,5 +20,6 @@ mod pawns;
 mod ranks_files;
 mod rays;
 mod zobrist;
+mod sense;
 
 pub use self::generate_all_tables::generate_all_tables;

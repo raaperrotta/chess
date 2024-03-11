@@ -19,6 +19,7 @@ use crate::gen_tables::pawns::*;
 use crate::gen_tables::ranks_files::*;
 use crate::gen_tables::rays::*;
 use crate::gen_tables::zobrist::*;
+use crate::gen_tables::sense::*;
 
 #[cfg(target_feature = "bmi2")]
 use crate::gen_tables::bmis::*;
@@ -35,6 +36,7 @@ pub fn generate_all_tables() {
     gen_pawn_moves();
     gen_all_magic();
     gen_bitboard_data();
+    gen_sense_masks();
     #[cfg(target_feature = "bmi2")]
     gen_all_bmis();
 
@@ -42,6 +44,7 @@ pub fn generate_all_tables() {
     let magic_path = Path::new(&out_dir).join("magic_gen.rs");
     let mut f = File::create(&magic_path).unwrap();
 
+    write_sense_masks(&mut f);
     write_king_moves(&mut f);
     write_knight_moves(&mut f);
     write_rays(&mut f);

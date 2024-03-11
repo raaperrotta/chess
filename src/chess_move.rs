@@ -70,7 +70,7 @@ impl ChessMove {
                 Square::make_square(rank, dest_file),
                 None,
             );
-            if MoveGen::new_legal(&board).any(|l| l == m) {
+            if MoveGen::new_pseudolegal(&board).any(|l| l == m) {
                 return Ok(m);
             } else {
                 return Err(Error::InvalidSanMove);
@@ -322,7 +322,7 @@ impl ChessMove {
         // ep
 
         let mut found_move: Option<ChessMove> = None;
-        for m in &mut MoveGen::new_legal(board) {
+        for m in &mut MoveGen::new_pseudolegal(board) {
             // check that the move has the properties specified
             if board.piece_on(m.get_source()) != Some(moving_piece) {
                 continue;

@@ -9,6 +9,12 @@ use std::arch::x86_64::{_pdep_u64, _pext_u64};
 // Include the generated lookup tables
 include!(concat!(env!("OUT_DIR"), "/magic_gen.rs"));
 
+/// Get the sense masks for a particular square.
+#[inline]
+pub fn get_sense_mask(sq: Square) -> BitBoard {
+    unsafe { *SENSE_MASKS.get_unchecked(sq.to_index()) }
+}
+
 /// Get the rays for a bishop on a particular square.
 #[inline]
 pub fn get_bishop_rays(sq: Square) -> BitBoard {
@@ -131,6 +137,11 @@ pub fn get_pawn_quiets(sq: Square, color: Color, blockers: BitBoard) -> BitBoard
 #[inline]
 pub fn get_pawn_moves(sq: Square, color: Color, blockers: BitBoard) -> BitBoard {
     get_pawn_attacks(sq, color, blockers) ^ get_pawn_quiets(sq, color, blockers)
+}
+
+#[inline]
+pub fn get_blind_pawn_moves(sq: Square, color: Color, my_pieces: BitBoard) -> BitBoard {
+    get_pawn_attacks(sq, color, !my_pieces) ^ get_pawn_quiets(sq, color, my_pieces)
 }
 
 /// Get a line (extending to infinity, which in chess is 8 squares), given two squares.

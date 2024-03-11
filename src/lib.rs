@@ -45,7 +45,7 @@ pub use crate::file::*;
 mod magic;
 pub use crate::magic::{
     between, get_adjacent_files, get_bishop_moves, get_bishop_rays, get_file, get_king_moves,
-    get_knight_moves, get_pawn_attacks, get_pawn_moves, get_pawn_quiets, get_rank, get_rook_moves,
+    get_knight_moves, get_pawn_attacks, get_pawn_moves, get_blind_pawn_moves, get_pawn_quiets, get_rank, get_rook_moves,
     get_rook_rays, line, EDGES,
 };
 
@@ -66,11 +66,17 @@ pub use crate::movegen::MoveGen;
 
 mod zobrist;
 
-mod game;
-pub use crate::game::{Action, Game, GameResult};
+// mod game;
+// pub use crate::game::{Action, Game, GameResult};
 
 mod board_builder;
 pub use crate::board_builder::BoardBuilder;
 
 mod error;
 pub use crate::error::Error;
+
+pub mod cfr;
+pub use crate::cfr::*;
+
+pub mod rbc;
+pub use crate::rbc::*;

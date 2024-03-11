@@ -17,6 +17,8 @@ documentation = "https://jordanbray.github.io/chess/chess/index.html"
 arrayvec = "0.7.2"
 nodrop = "0.1.14"
 failure = "0.1.6"
+num-format = "0.4.4"
+rand = "0.9.0-alpha.0"
 
 [profile.release]
 opt-level = 3
@@ -40,3 +42,11 @@ opt-level = 3
 [build-dependencies]
 rand = { version = "0.7.2", default_features = false, features = ["small_rng"] }
 failure = "0.1.6"
+
+[[bin]]
+name = "random_moves"
+path = "src/bin/random_moves.rs"
+
+[[bin]]
+name = "pawn_moves"
+path = "src/bin/pawn_moves.rs"

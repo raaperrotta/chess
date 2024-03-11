@@ -8,7 +8,6 @@ use crate::square::Square;
 use arrayvec::ArrayVec;
 use nodrop::NoDrop;
 use std::iter::ExactSizeIterator;
-use std::mem;
 
 #[derive(Copy, Clone, PartialEq, PartialOrd)]
 pub struct SquareAndBitBoard {
@@ -92,37 +91,88 @@ pub struct MoveGen {
 
 impl MoveGen {
     #[inline(always)]
-    fn enumerate_moves(board: &Board) -> MoveList {
-        let checkers = *board.checkers();
+    // fn enumerate_moves(board: &Board) -> MoveList {
+    //     let checkers = *board.checkers();
+    //     let mask = !board.color_combined(board.side_to_move());
+    //     let mut movelist = NoDrop::new(ArrayVec::<SquareAndBitBoard, 18>::new());
+
+    //     if checkers == EMPTY {
+    //         PawnType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+    //         KnightType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+    //         BishopType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+    //         RookType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+    //         QueenType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+    //         KingType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+    //     } else if checkers.popcnt() == 1 {
+    //         PawnType::legals::<InCheckType>(&mut movelist, &board, mask);
+    //         KnightType::legals::<InCheckType>(&mut movelist, &board, mask);
+    //         BishopType::legals::<InCheckType>(&mut movelist, &board, mask);
+    //         RookType::legals::<InCheckType>(&mut movelist, &board, mask);
+    //         QueenType::legals::<InCheckType>(&mut movelist, &board, mask);
+    //         KingType::legals::<InCheckType>(&mut movelist, &board, mask);
+    //     } else {
+    //         KingType::legals::<InCheckType>(&mut movelist, &board, mask);
+    //     }
+
+    //     movelist
+    // }
+
+    /// Create a new `MoveGen` structure, only generating legal moves
+    #[inline(always)]
+    // pub fn new_legal(board: &Board) -> MoveGen {
+    //     MoveGen {
+    //         moves: MoveGen::enumerate_moves(board),
+    //         promotion_index: 0,
+    //         iterator_mask: !EMPTY,
+    //         index: 0,
+    //     }
+    // }
+
+    #[inline(always)]
+    fn enumerate_pseudolegal_moves(board: &Board) -> MoveList {
         let mask = !board.color_combined(board.side_to_move());
         let mut movelist = NoDrop::new(ArrayVec::<SquareAndBitBoard, 18>::new());
 
-        if checkers == EMPTY {
-            PawnType::legals::<NotInCheckType>(&mut movelist, &board, mask);
-            KnightType::legals::<NotInCheckType>(&mut movelist, &board, mask);
-            BishopType::legals::<NotInCheckType>(&mut movelist, &board, mask);
-            RookType::legals::<NotInCheckType>(&mut movelist, &board, mask);
-            QueenType::legals::<NotInCheckType>(&mut movelist, &board, mask);
-            KingType::legals::<NotInCheckType>(&mut movelist, &board, mask);
-        } else if checkers.popcnt() == 1 {
-            PawnType::legals::<InCheckType>(&mut movelist, &board, mask);
-            KnightType::legals::<InCheckType>(&mut movelist, &board, mask);
-            BishopType::legals::<InCheckType>(&mut movelist, &board, mask);
-            RookType::legals::<InCheckType>(&mut movelist, &board, mask);
-            QueenType::legals::<InCheckType>(&mut movelist, &board, mask);
-            KingType::legals::<InCheckType>(&mut movelist, &board, mask);
-        } else {
-            KingType::legals::<InCheckType>(&mut movelist, &board, mask);
+        PawnType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+        KnightType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+        BishopType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+        RookType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+        QueenType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+        KingType::legals::<NotInCheckType>(&mut movelist, &board, mask);
+
+        movelist
+    }
+
+    /// Create a new `MoveGen` structure, only generating pseudolegal moves
+    #[inline(always)]
+    pub fn new_pseudolegal(board: &Board) -> MoveGen {
+        MoveGen {
+            moves: MoveGen::enumerate_pseudolegal_moves(board),
+            promotion_index: 0,
+            iterator_mask: !EMPTY,
+            index: 0,
         }
+    }
+
+    #[inline(always)]
+    fn enumerate_blind_moves(board: &Board) -> MoveList {
+        let mut movelist = NoDrop::new(ArrayVec::<SquareAndBitBoard, 18>::new());
+
+        PawnType::blind_moves(&mut movelist, &board);
+        KnightType::blind_moves(&mut movelist, &board);
+        BishopType::blind_moves(&mut movelist, &board);
+        RookType::blind_moves(&mut movelist, &board);
+        QueenType::blind_moves(&mut movelist, &board);
+        KingType::blind_moves(&mut movelist, &board);
 
         movelist
     }
 
     /// Create a new `MoveGen` structure, only generating legal moves
     #[inline(always)]
-    pub fn new_legal(board: &Board) -> MoveGen {
+    pub fn new_blind_moves(board: &Board) -> MoveGen {
         MoveGen {
-            moves: MoveGen::enumerate_moves(board),
+            moves: MoveGen::enumerate_blind_moves(board),
             promotion_index: 0,
             iterator_mask: !EMPTY,
             index: 0,
@@ -219,7 +269,7 @@ impl MoveGen {
 
     /// Fastest perft test with this structure
     pub fn movegen_perft_test(board: &Board, depth: usize) -> usize {
-        let iterable = MoveGen::new_legal(board);
+        let iterable = MoveGen::new_pseudolegal(board);
 
         let mut result: usize = 0;
         if depth == 1 {
@@ -236,7 +286,7 @@ impl MoveGen {
     #[cfg(test)]
     /// Do a perft test after splitting the moves up into two groups
     pub fn movegen_perft_test_piecewise(board: &Board, depth: usize) -> usize {
-        let mut iterable = MoveGen::new_legal(board);
+        let mut iterable = MoveGen::new_pesudolegal(board);
 
         let targets = board.color_combined(!board.side_to_move());
         let mut result: usize = 0;

@@ -56,6 +56,27 @@ impl Piece {
             piece
         }
     }
+
+    pub fn to_fancy_string(self, color: Color) -> char {
+        match color {
+            Color::White => match self {
+                Piece::Pawn   => '♟',
+                Piece::Knight => '♞',
+                Piece::Bishop => '♝',
+                Piece::Rook   => '♜',
+                Piece::Queen  => '♛',
+                Piece::King   => '♚',
+            },
+            Color::Black =>match self {
+                Piece::Pawn   => '♙',
+                Piece::Knight => '♘',
+                Piece::Bishop => '♗',
+                Piece::Rook   => '♖',
+                Piece::Queen  => '♕',
+                Piece::King   => '♔',
+            },
+        }
+    }
 }
 
 impl fmt::Display for Piece {

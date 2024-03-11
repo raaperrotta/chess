@@ -9,7 +9,7 @@ pub enum Error {
 
     /// The board created from BoardBuilder was found to be invalid
     #[fail(
-        display = "The board specified did not pass sanity checks.  Are you sure the kings exist and the side to move cannot capture the opposing king?"
+        display = "The board specified did not pass sanity checks. Are you sure the kings exist and the side to move cannot capture the opposing king?"
     )]
     InvalidBoard,
 
