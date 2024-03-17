@@ -6,19 +6,18 @@ use crate::color::{Color, ALL_COLORS, NUM_COLORS};
 use crate::error::Error;
 use crate::file::File;
 use crate::magic::{
-    between, get_adjacent_files, get_bishop_rays, get_castle_moves, get_file, get_king_moves,
-    get_knight_moves, get_pawn_attacks, get_pawn_dest_double_moves, get_pawn_source_double_moves,
-    get_rank, get_rook_rays,
+    get_adjacent_files, get_castle_moves, get_file, get_king_moves,
+    get_pawn_dest_double_moves, get_pawn_source_double_moves,
+    get_rank,
 };
-use crate::{movegen::*, Rank};
 use crate::piece::{Piece, ALL_PIECES, NUM_PIECES};
 use crate::square::{Square, ALL_SQUARES};
 use crate::zobrist::Zobrist;
+use crate::{movegen::*, Rank};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
-use std::hash::{Hash, Hasher};
-use std::mem;
 use std::str::FromStr;
+use std::hash::{Hash, Hasher};
 
 /// A representation of a chess board.  That's why you're here, right?
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -30,7 +29,7 @@ pub struct Board {
     castle_rights: [CastleRights; NUM_COLORS],
     // pinned: BitBoard,
     // checkers: BitBoard,
-    // hash: u64,
+    hash: u64,
     en_passant: Option<Square>,
 }
 
@@ -51,11 +50,11 @@ impl Default for Board {
     }
 }
 
-// impl Hash for Board {
-//     fn hash<H: Hasher>(&self, state: &mut H) {
-//         self.hash.hash(state);
-//     }
-// }
+impl Hash for Board {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+    }
+}
 
 impl Board {
     /// Construct a new `Board` that is completely empty.
@@ -69,7 +68,7 @@ impl Board {
             castle_rights: [CastleRights::NoRights; NUM_COLORS],
             // pinned: EMPTY,
             // checkers: EMPTY,
-            // hash: 0,
+            hash: 0,
             en_passant: None,
         }
     }
@@ -113,60 +112,6 @@ impl Board {
         }
         size
     }
-
-    /// Is this game Ongoing, is it Stalemate, or is it Checkmate?
-    ///
-    /// ```
-    /// use chess::{Board, BoardStatus, Square, ChessMove};
-    ///
-    /// let mut board = Board::default();
-    ///
-    /// assert_eq!(board.status(), BoardStatus::Ongoing);
-    ///
-    /// board = board.make_move_new(ChessMove::new(Square::E2,
-    ///                                            Square::E4,
-    ///                                            None));
-    ///
-    /// assert_eq!(board.status(), BoardStatus::Ongoing);
-    ///
-    /// board = board.make_move_new(ChessMove::new(Square::F7,
-    ///                                            Square::F6,
-    ///                                            None));
-    ///
-    /// assert_eq!(board.status(), BoardStatus::Ongoing);
-    ///
-    /// board = board.make_move_new(ChessMove::new(Square::D2,
-    ///                                            Square::D4,
-    ///                                            None));
-    ///
-    /// assert_eq!(board.status(), BoardStatus::Ongoing);
-    ///
-    /// board = board.make_move_new(ChessMove::new(Square::G7,
-    ///                                            Square::G5,
-    ///                                            None));
-    ///
-    /// assert_eq!(board.status(), BoardStatus::Ongoing);
-    ///
-    /// board = board.make_move_new(ChessMove::new(Square::D1,
-    ///                                            Square::H5,
-    ///                                            None));
-    ///
-    /// assert_eq!(board.status(), BoardStatus::Checkmate);
-    /// ```
-    // #[inline]
-    // pub fn status(&self) -> BoardStatus {
-    //     let moves = MoveGen::new_legal(&self).len();
-    //     match moves {
-    //         0 => {
-    //             if self.checkers == EMPTY {
-    //                 BoardStatus::Stalemate
-    //             } else {
-    //                 BoardStatus::Checkmate
-    //             }
-    //         }
-    //         _ => BoardStatus::Ongoing,
-    //     }
-    // }
 
     /// Grab the "combined" `BitBoard`.  This is a `BitBoard` with every piece.
     ///
@@ -438,7 +383,7 @@ impl Board {
             *self.pieces.get_unchecked_mut(piece.to_index()) ^= bb;
             *self.color_combined.get_unchecked_mut(color.to_index()) ^= bb;
             self.combined ^= bb;
-            // self.hash ^= Zobrist::piece(piece, bb.to_square(), color);
+            self.hash ^= Zobrist::piece(piece, bb.to_square(), color);
         }
     }
 
@@ -562,11 +507,11 @@ impl Board {
         // if self.checkers != EMPTY {
         //     None
         // } else {
-            let mut result = *self;
-            result.side_to_move = !result.side_to_move;
-            result.remove_ep();
-            // result.update_pin_info();
-            Some(result)
+        let mut result = *self;
+        result.side_to_move = !result.side_to_move;
+        result.remove_ep();
+        // result.update_pin_info();
+        Some(result)
         // }
     }
     #[inline]
@@ -686,28 +631,28 @@ impl Board {
     }
 
     /// Get a hash of the board.
-    // #[inline]
-    // pub fn get_hash(&self) -> u64 {
-    //     self.hash
-    //         ^ if let Some(ep) = self.en_passant {
-    //             Zobrist::en_passant(ep.get_file(), !self.side_to_move)
-    //         } else {
-    //             0
-    //         }
-    //         ^ Zobrist::castles(
-    //             self.castle_rights[self.side_to_move.to_index()],
-    //             self.side_to_move,
-    //         )
-    //         ^ Zobrist::castles(
-    //             self.castle_rights[(!self.side_to_move).to_index()],
-    //             !self.side_to_move,
-    //         )
-    //         ^ if self.side_to_move == Color::Black {
-    //             Zobrist::color()
-    //         } else {
-    //             0
-    //         }
-    // }
+    #[inline]
+    pub fn get_hash(&self) -> u64 {
+        self.hash
+            ^ if let Some(ep) = self.en_passant {
+                Zobrist::en_passant(ep.get_file(), !self.side_to_move)
+            } else {
+                0
+            }
+            ^ Zobrist::castles(
+                self.castle_rights[self.side_to_move.to_index()],
+                self.side_to_move,
+            )
+            ^ Zobrist::castles(
+                self.castle_rights[(!self.side_to_move).to_index()],
+                !self.side_to_move,
+            )
+            ^ if self.side_to_move == Color::Black {
+                Zobrist::color()
+            } else {
+                0
+            }
+    }
 
     /// Get a pawn hash of the board (a hash that only changes on color change and pawn moves).
     ///
@@ -872,7 +817,6 @@ impl Board {
         result
     }
 
-
     #[inline]
     pub fn make_move_mut(&mut self, m: ChessMove) {
         let en_passant = self.en_passant;
@@ -906,7 +850,7 @@ impl Board {
             source,
         ));
 
-        let opp_king = self.pieces(Piece::King) & self.color_combined(!self.side_to_move);
+        // let opp_king = self.pieces(Piece::King) & self.color_combined(!self.side_to_move);
 
         let castles = moved == Piece::King && (move_bb & get_castle_moves()) == move_bb;
 
@@ -962,11 +906,11 @@ impl Board {
             self.xor(Piece::Rook, start, self.side_to_move);
             self.xor(Piece::Rook, end, self.side_to_move);
         }
-        
+
         self.side_to_move = !self.side_to_move;
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_fancy_string(&self) -> String {
         let mut out = "  A B C D E F G H".to_owned();
         for rank in (0..8).rev() {
             out.push_str(&format!("\n{} ", rank + 1));
@@ -974,10 +918,19 @@ impl Board {
                 let sq = Square::make_square(Rank::from_index(rank), File::from_index(file));
                 let piece_string = match self.piece_on(sq) {
                     Some(piece) => {
-                        let color = self.color_on(sq).expect(&format!("Found piece {} on square {} but no color!", piece, sq));
+                        let color = self.color_on(sq).expect(&format!(
+                            "Found piece {} on square {} but no color!",
+                            piece, sq
+                        ));
                         piece.to_fancy_string(color)
-                    },
-                    None => if ((rank + file) % 2) == 0 {'·'} else {' '},
+                    }
+                    None => {
+                        if ((rank + file) % 2) == 0 {
+                            '·'
+                        } else {
+                            ' '
+                        }
+                    }
                 };
                 out.push(piece_string);
                 out.push(' ');

@@ -1,7 +1,7 @@
 use chess::BitBoard;
-use chess::EMPTY;
 use chess::Color;
 use chess::Square;
+use chess::EMPTY;
 use chess::{get_bishop_moves, get_rook_moves};
 
 fn main() {
@@ -9,7 +9,8 @@ fn main() {
     println!("{moves}");
     let moves = get_bishop_moves(Square::E4, BitBoard::from_square(Square::C2));
     println!("{moves}");
-    let moves = get_bishop_moves(Square::E4, BitBoard::from_square(Square::C2)) & !BitBoard::from_square(Square::C2);
+    let moves = get_bishop_moves(Square::E4, BitBoard::from_square(Square::C2))
+        & !BitBoard::from_square(Square::C2);
     println!("{moves}");
     let moves = get_rook_moves(Square::E4, EMPTY);
     println!("{moves}");
@@ -22,5 +23,4 @@ fn main() {
     println!("{moves}");
     let moves = get_bishop_moves(Square::C1, my_pieces) & !my_pieces;
     println!("{moves}");
-
 }

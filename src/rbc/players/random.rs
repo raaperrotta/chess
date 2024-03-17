@@ -1,8 +1,8 @@
+use crate::{Board, ChessMove, MoveGen, MoveResult, Player, SenseResult, Square};
 use rand::rngs::ThreadRng;
 use rand::seq::IteratorRandom;
-use crate::{Board, ChessMove, MoveGen, Square, SenseResult, MoveResult, Player};
 
-pub struct RandomPlayer{
+pub struct RandomPlayer {
     rng: ThreadRng,
     board: Board,
 }
@@ -18,16 +18,18 @@ impl Player for RandomPlayer {
     fn handle_opponent_capture(&mut self, capture: &Option<Square>) {
         self.board.null_move_mut();
         if let Some(square) = capture {
-            self.board = self.board.clear_square(*square).expect(&format!("expected to find a piece at opponent capture square {square}"));
+            self.board = self.board.clear_square(*square).unwrap();
         }
     }
-    fn choose_sense(&mut self) -> Square { Square::B2 }
+    fn choose_sense(&mut self) -> Square {
+        Square::B2
+    }
     fn handle_sense_result(&mut self, _sense_result: &SenseResult) {}
-    fn choose_move(&mut self) -> Option<ChessMove> { 
-        let mut moves: Vec<_> = MoveGen::new_blind_moves(&self.board).map(|m| Some(m)).collect();
+    fn choose_move(&mut self) -> Option<ChessMove> {
+        let mut moves: Vec<_> = MoveGen::new_blind_moves(&self.board)
+            .map(|m| Some(m))
+            .collect();
         moves.push(None);
-        let move_string: Vec<_> = moves.iter().map(|m| m.map(|m| m.to_string())).collect();
-        println!("{:?}", move_string);
         *moves.iter().choose(&mut self.rng).unwrap()
     }
     fn handle_move_result(&mut self, result: &MoveResult) {

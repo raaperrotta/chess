@@ -250,7 +250,7 @@ impl PieceType for KnightType {
         let combined = board.combined();
         let color = board.side_to_move();
         let my_pieces = board.color_combined(color);
-        let ksq = board.king_square(color);
+        // let ksq = board.king_square(color);
 
         let pieces = board.pieces(Self::into_piece()) & my_pieces;
         // let pinned = board.pinned();
@@ -268,14 +268,14 @@ impl PieceType for KnightType {
         //         }
         //     }
         // } else {
-            for src in pieces {
-                let moves = Self::pseudo_legals(src, color, *combined, mask);
-                if moves != EMPTY {
-                    unsafe {
-                        movelist.push_unchecked(SquareAndBitBoard::new(src, moves, false));
-                    }
+        for src in pieces {
+            let moves = Self::pseudo_legals(src, color, *combined, mask);
+            if moves != EMPTY {
+                unsafe {
+                    movelist.push_unchecked(SquareAndBitBoard::new(src, moves, false));
                 }
             }
+        }
         // };
     }
 }

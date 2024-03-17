@@ -19,7 +19,7 @@ mod magic_helpers;
 mod pawns;
 mod ranks_files;
 mod rays;
-mod zobrist;
 mod sense;
+mod zobrist;
 
 pub use self::generate_all_tables::generate_all_tables;

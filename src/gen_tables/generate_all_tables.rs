@@ -18,8 +18,8 @@ use crate::gen_tables::lines::*;
 use crate::gen_tables::pawns::*;
 use crate::gen_tables::ranks_files::*;
 use crate::gen_tables::rays::*;
-use crate::gen_tables::zobrist::*;
 use crate::gen_tables::sense::*;
+use crate::gen_tables::zobrist::*;
 
 #[cfg(target_feature = "bmi2")]
 use crate::gen_tables::bmis::*;

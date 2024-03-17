@@ -1,8 +1,8 @@
 use chess::BitBoard;
-use chess::EMPTY;
 use chess::Color;
 use chess::Square;
-use chess::{get_pawn_moves, get_blind_pawn_moves};
+use chess::EMPTY;
+use chess::{get_blind_pawn_moves, get_pawn_moves};
 
 fn main() {
     let moves = get_pawn_moves(Square::B2, Color::White, EMPTY);

@@ -507,8 +507,6 @@ impl From<Board> for BoardBuilder {
 }
 
 #[cfg(test)]
-use crate::bitboard::BitBoard;
-#[cfg(test)]
 use std::convert::TryInto;
 
 #[test]
@@ -539,19 +537,4 @@ fn test_kissing_kings() {
         .piece(Square::A2, Piece::King, Color::Black)
         .try_into();
     assert!(res.is_err());
-}
-
-#[test]
-fn test_in_check() {
-    let mut bb: BoardBuilder = BoardBuilder::new();
-    bb.piece(Square::A1, Piece::King, Color::White)
-        .piece(Square::A8, Piece::King, Color::Black)
-        .piece(Square::H1, Piece::Rook, Color::Black);
-
-    let board: Board = (&bb).try_into().unwrap();
-    assert_eq!(*board.checkers(), BitBoard::from_square(Square::H1));
-
-    bb.side_to_move(Color::Black);
-    let res: Result<Board, _> = bb.try_into();
-    assert!(res.is_err()); // My opponent cannot be in check when it's my move.
 }
