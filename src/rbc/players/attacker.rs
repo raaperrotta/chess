@@ -3,7 +3,7 @@ use rand::seq::IteratorRandom;
 use std::str::FromStr;
 
 fn get_attacks(color: Color) -> Vec<ChessMove> {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut attacks: Vec<Vec<ChessMove>> = Vec::new();
     for attack in [
         // Queen-side knight attacks

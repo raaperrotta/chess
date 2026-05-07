@@ -4,9 +4,9 @@ use chess;
 use rand::seq::IteratorRandom;
 
 fn main() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
-    let mut board =
+    let board =
         chess::Board::from_str("r1bqkbnr/p1pppp2/6p1/1p2N2p/1P3BP1/3P4/P3PP1P/1N1Q2K1 b kq - 0 1")
             .unwrap();
     println!("{}", board.to_fancy_string());

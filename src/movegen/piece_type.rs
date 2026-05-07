@@ -7,9 +7,8 @@ use crate::piece::Piece;
 use crate::square::Square;
 
 use crate::magic::{
-    between, get_adjacent_files, get_bishop_moves, get_bishop_rays, get_king_moves,
-    get_knight_moves, get_pawn_attacks, get_pawn_moves, get_rank, get_rook_moves, get_rook_rays,
-    line,
+    get_adjacent_files, get_bishop_moves, get_bishop_rays, get_king_moves, get_knight_moves,
+    get_pawn_attacks, get_pawn_moves, get_rank, get_rook_moves, get_rook_rays,
 };
 
 pub trait PieceType {
@@ -50,12 +49,15 @@ pub trait PieceType {
         let color = board.side_to_move();
         let my_pieces = board.color_combined(color);
         let pieces = board.pieces(Self::into_piece()) & my_pieces;
+        let is_pawn = Self::is(Piece::Pawn);
+        let promotion_rank = color.to_seventh_rank();
 
         for src in pieces {
             let moves = Self::blind_moves_from_src(src, color, *my_pieces);
             if moves != EMPTY {
+                let promotion = is_pawn && src.get_rank() == promotion_rank;
                 unsafe {
-                    movelist.push_unchecked(SquareAndBitBoard::new(src, moves, false));
+                    movelist.push_unchecked(SquareAndBitBoard::new(src, moves, promotion));
                 }
             }
         }
@@ -73,6 +75,7 @@ pub trait CheckType {
     const IN_CHECK: bool;
 }
 
+#[allow(dead_code)]
 pub struct InCheckType;
 pub struct NotInCheckType;
 
@@ -446,17 +449,15 @@ impl PieceType for KingType {
             if board.my_castle_rights().has_kingside()
                 && (my_pieces & board.my_castle_rights().kingside_squares(color)) == EMPTY
             {
-                let middle = ksq.uright();
-                let right = middle.uright();
-                moves ^= BitBoard::from_square(right);
+                let right = ksq.uright().uright();
+                moves |= BitBoard::from_square(right);
             }
 
             if board.my_castle_rights().has_queenside()
                 && (my_pieces & board.my_castle_rights().queenside_squares(color)) == EMPTY
             {
-                let middle = ksq.uleft();
-                let left = middle.uleft();
-                moves ^= BitBoard::from_square(left);
+                let left = ksq.uleft().uleft();
+                moves |= BitBoard::from_square(left);
             }
 
             if moves != EMPTY {

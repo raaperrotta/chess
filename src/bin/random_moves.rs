@@ -1,10 +1,10 @@
 use chess;
 use num_format::{Locale, ToFormattedString};
-use rand::{seq::IteratorRandom, Rng, RngCore};
+use rand::seq::IteratorRandom;
 use std::time::Instant;
 
 fn main() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let num_games = 10_000;
     let max_moves_per_game = 1_000;

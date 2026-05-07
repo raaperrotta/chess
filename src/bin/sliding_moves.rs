@@ -1,5 +1,5 @@
 use chess::BitBoard;
-use chess::Color;
+
 use chess::Square;
 use chess::EMPTY;
 use chess::{get_bishop_moves, get_rook_moves};

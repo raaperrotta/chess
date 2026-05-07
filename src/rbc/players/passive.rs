@@ -1,4 +1,4 @@
-use crate::{ChessMove, Color, MoveResult, Player, Rank, SenseResult, Square};
+use crate::{ChessMove, MoveResult, Player, SenseResult, Square};
 
 pub struct PassivePlayer {}
 

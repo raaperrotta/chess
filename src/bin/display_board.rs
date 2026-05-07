@@ -2,7 +2,7 @@ use chess;
 use rand::seq::IteratorRandom;
 
 fn main() {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut board = chess::Board::default();
     println!("{}", board.to_fancy_string());

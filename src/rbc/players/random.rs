@@ -9,7 +9,7 @@ pub struct RandomPlayer {
 impl RandomPlayer {
     pub fn new() -> Self {
         Self {
-            rng: rand::thread_rng(),
+            rng: rand::rng(),
             board: Board::default(),
         }
     }
@@ -18,7 +18,14 @@ impl Player for RandomPlayer {
     fn handle_opponent_capture(&mut self, capture: &Option<Square>) {
         self.board.null_move_mut();
         if let Some(square) = capture {
-            self.board = self.board.clear_square(*square).unwrap();
+            // clear_square is marked deprecated by upstream because it
+            // doesn't validate the resulting position, but for RandomPlayer
+            // we don't care about validity; the player only uses its
+            // internal board to enumerate move requests.
+            #[allow(deprecated)]
+            {
+                self.board = self.board.clear_square(*square).unwrap();
+            }
         }
     }
     fn choose_sense(&mut self) -> Square {
