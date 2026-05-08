@@ -1,0 +1,322 @@
+[
+  {
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "requested": null,
+    "taken": null,
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "pass at start"
+  },
+  {
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "requested": "e2e4",
+    "taken": "e2e4",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "double push, clear path"
+  },
+  {
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "requested": "e2e3",
+    "taken": "e2e3",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "single push, clear path"
+  },
+  {
+    "fen": "4k3/8/8/8/8/4n3/4P3/4K3 w - - 0 1",
+    "requested": "e2e4",
+    "taken": null,
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "double push blocked at mid"
+  },
+  {
+    "fen": "4k3/8/8/8/4n3/8/4P3/4K3 w - - 0 1",
+    "requested": "e2e4",
+    "taken": "e2e3",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "double push blocked at far -> revise to single"
+  },
+  {
+    "fen": "4k3/8/8/8/8/4n3/4P3/4K3 w - - 0 1",
+    "requested": "e2e3",
+    "taken": null,
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "single push blocked"
+  },
+  {
+    "fen": "4k3/8/8/8/4n3/8/4P3/4K3 w - - 0 1",
+    "requested": "e2e3",
+    "taken": "e2e3",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "single push clear (mid is far for single)"
+  },
+  {
+    "fen": "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2",
+    "requested": "e4d5",
+    "taken": "e4d5",
+    "capture_square": "d5",
+    "expect_error": false,
+    "comment": "pawn captures pawn diagonally"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1",
+    "requested": "e2f3",
+    "taken": null,
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "pawn diagonal to empty square: illegal request -> pass"
+  },
+  {
+    "fen": "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3",
+    "requested": "e5f6",
+    "taken": "e5f6",
+    "capture_square": "f5",
+    "expect_error": false,
+    "comment": "en passant capture"
+  },
+  {
+    "fen": "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3",
+    "requested": "e5f6",
+    "taken": null,
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "diagonal to empty square with no en passant: pass"
+  },
+  {
+    "fen": "7k/P7/8/8/8/8/8/4K3 w - - 0 1",
+    "requested": "a7a8q",
+    "taken": "a7a8q",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "pawn push to back rank with no promo -> queen"
+  },
+  {
+    "fen": "7k/P7/8/8/8/8/8/4K3 w - - 0 1",
+    "requested": "a7a8q",
+    "taken": "a7a8q",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "explicit queen promotion"
+  },
+  {
+    "fen": "7k/P7/8/8/8/8/8/4K3 w - - 0 1",
+    "requested": "a7a8n",
+    "taken": "a7a8n",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "explicit knight promotion"
+  },
+  {
+    "fen": "7k/P7/8/8/8/8/8/4K3 w - - 0 1",
+    "requested": "a7a8r",
+    "taken": "a7a8r",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "explicit rook promotion"
+  },
+  {
+    "fen": "7k/P7/8/8/8/8/8/4K3 w - - 0 1",
+    "requested": "a7a8b",
+    "taken": "a7a8b",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "explicit bishop promotion"
+  },
+  {
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "requested": "b1c3",
+    "taken": "b1c3",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "knight standard move"
+  },
+  {
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "requested": "g1f3",
+    "taken": "g1f3",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "knight standard move"
+  },
+  {
+    "fen": "rnbqkbnr/ppp1pppp/8/3p4/8/2N5/PPPPPPPP/R1BQKBNR w KQkq - 0 1",
+    "requested": "c3d5",
+    "taken": "c3d5",
+    "capture_square": "d5",
+    "expect_error": false,
+    "comment": "knight capture"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/2B1K3 w - - 0 1",
+    "requested": "c1h6",
+    "taken": "c1h6",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "bishop slide unobstructed"
+  },
+  {
+    "fen": "4k3/8/8/8/8/4n3/8/2B1K3 w - - 0 1",
+    "requested": "c1h6",
+    "taken": "c1e3",
+    "capture_square": "e3",
+    "expect_error": false,
+    "comment": "bishop slide stopped early"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/R3K3 w - - 0 1",
+    "requested": "a1a8",
+    "taken": "a1a8",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "rook slide unobstructed"
+  },
+  {
+    "fen": "4k3/8/8/8/n7/8/8/R3K3 w - - 0 1",
+    "requested": "a1a8",
+    "taken": "a1a4",
+    "capture_square": "a4",
+    "expect_error": false,
+    "comment": "rook slide stopped at a4"
+  },
+  {
+    "fen": "r3k3/8/8/8/8/8/8/4K3 b - - 0 1",
+    "requested": "a8a1",
+    "taken": "a8a1",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "rook slide descending, unobstructed (black)"
+  },
+  {
+    "fen": "r3k3/8/8/8/N7/8/8/4K3 b - - 0 1",
+    "requested": "a8a1",
+    "taken": "a8a4",
+    "capture_square": "a4",
+    "expect_error": false,
+    "comment": "rook slide descending stopped at a4"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/3QK3 w - - 0 1",
+    "requested": "d1d8",
+    "taken": "d1d8",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "queen vertical unobstructed"
+  },
+  {
+    "fen": "4k3/8/8/8/3n4/8/8/3QK3 w - - 0 1",
+    "requested": "d1d8",
+    "taken": "d1d4",
+    "capture_square": "d4",
+    "expect_error": false,
+    "comment": "queen vertical stopped early"
+  },
+  {
+    "fen": "4k3/8/8/8/4n3/8/8/3QK3 w - - 0 1",
+    "requested": "d1h5",
+    "taken": "d1h5",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "queen diagonal stopped early"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+    "requested": "e1e2",
+    "taken": "e1e2",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "king one step"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/3qK3 w - - 0 1",
+    "requested": "e1d1",
+    "taken": "e1d1",
+    "capture_square": "d1",
+    "expect_error": false,
+    "comment": "king captures opponent piece adjacent"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/4K2R w K - 0 1",
+    "requested": "e1g1",
+    "taken": "e1g1",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "kingside castle clear"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/R3K3 w Q - 0 1",
+    "requested": "e1c1",
+    "taken": "e1c1",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "queenside castle clear"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/4KB1R w K - 0 1",
+    "requested": "e1g1",
+    "taken": null,
+    "capture_square": null,
+    "expect_error": true,
+    "comment": "kingside castle blocked by own bishop -> not in move_actions"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/RN2K3 w Q - 0 1",
+    "requested": "e1c1",
+    "taken": null,
+    "capture_square": null,
+    "expect_error": true,
+    "comment": "queenside castle blocked at b1 -> not in move_actions"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/R1N1K3 w Q - 0 1",
+    "requested": "e1c1",
+    "taken": null,
+    "capture_square": null,
+    "expect_error": true,
+    "comment": "queenside castle blocked at c1 -> not in move_actions"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/R2NK3 w Q - 0 1",
+    "requested": "e1c1",
+    "taken": null,
+    "capture_square": null,
+    "expect_error": true,
+    "comment": "queenside castle blocked at d1 -> not in move_actions"
+  },
+  {
+    "fen": "4k1r1/8/8/8/8/8/8/4K2R w K - 0 1",
+    "requested": "e1g1",
+    "taken": "e1g1",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "castle through check (RBC allows)"
+  },
+  {
+    "fen": "4k3/8/8/8/8/8/8/4K2R w - - 0 1",
+    "requested": "e1g1",
+    "taken": null,
+    "capture_square": null,
+    "expect_error": true,
+    "comment": "castle without rights -> not in move_actions"
+  },
+  {
+    "fen": "r3k3/8/8/8/8/8/8/4K3 b q - 0 1",
+    "requested": "e8c8",
+    "taken": "e8c8",
+    "capture_square": null,
+    "expect_error": false,
+    "comment": "black queenside castle"
+  },
+  {
+    "fen": "rn2k3/8/8/8/8/8/8/4K3 b q - 0 1",
+    "requested": "e8c8",
+    "taken": null,
+    "capture_square": null,
+    "expect_error": true,
+    "comment": "black queenside castle blocked at b8 -> not in move_actions"
+  }
+]

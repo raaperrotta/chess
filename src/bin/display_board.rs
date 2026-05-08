@@ -7,7 +7,7 @@ fn main() {
     let mut board = chess::Board::default();
     println!("{}", board.to_fancy_string());
     for _ in 0..100 {
-        let movegen = chess::MoveGen::new_pseudolegal(&board);
+        let movegen = chess::MoveGen::new_legal(&board);
         let m = match movegen.choose(&mut rng) {
             Some(m) => m,
             None => break,

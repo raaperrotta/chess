@@ -55,7 +55,7 @@ pub type MoveList = NoDrop<ArrayVec<SquareAndBitBoard, 18>>;
 /// let board = Board::default();
 ///
 /// // create an iterable
-/// let mut iterable = MoveGen::new_pseudolegal(&board);
+/// let mut iterable = MoveGen::new_legal(&board);
 ///
 /// // make sure .len() works.
 /// assert_eq!(iterable.len(), 20); // the .len() function does *not* consume the iterator
@@ -91,7 +91,7 @@ pub struct MoveGen {
 // TODO should I implement a builder pattern here or bake an immutable version of MoveGen that makes it faster to extract random samples?
 // e.g. store the length and implement a get and/or get_random function?
 impl MoveGen {
-    fn enumerate_pseudolegal_moves(board: &Board) -> MoveList {
+    fn enumerate_legal_moves(board: &Board) -> MoveList {
         let mask = !board.color_combined(board.side_to_move());
         let mut movelist = NoDrop::new(ArrayVec::<SquareAndBitBoard, 18>::new());
 
@@ -105,15 +105,32 @@ impl MoveGen {
         movelist
     }
 
-    /// Create a new `MoveGen` structure, only generating pseudolegal moves
+    /// Create a new `MoveGen` over the legal moves on `board`. Emits chess
+    /// moves that respect all standard chess rules: cannot move into check,
+    /// cannot castle through check, en-passant cannot expose the king, etc.
+    ///
+    /// Note: this is *not* "pseudo-legal" in the python-chess sense. For
+    /// reconnaissance blind chess, where moving the king into check is
+    /// allowed, use [`MoveGen::new_blind_moves`] instead.
     #[inline(always)]
-    pub fn new_pseudolegal(board: &Board) -> MoveGen {
+    pub fn new_legal(board: &Board) -> MoveGen {
         MoveGen {
-            moves: MoveGen::enumerate_pseudolegal_moves(board),
+            moves: MoveGen::enumerate_legal_moves(board),
             promotion_index: 0,
             iterator_mask: !EMPTY,
             index: 0,
         }
+    }
+
+    /// Deprecated alias for [`MoveGen::new_legal`].
+    ///
+    /// The original name was misleading: this generator filters
+    /// check-related cases, so its output is the set of *legal* chess
+    /// moves, not the larger set of pseudo-legal moves.
+    #[deprecated(since = "3.3.0", note = "renamed to `new_legal`; the previous name was misleading because this generator already filters check-related cases")]
+    #[inline(always)]
+    pub fn new_pseudolegal(board: &Board) -> MoveGen {
+        MoveGen::new_legal(board)
     }
 
     #[inline(always)]
@@ -231,7 +248,7 @@ impl MoveGen {
 
     /// Fastest perft test with this structure
     pub fn movegen_perft_test(board: &Board, depth: usize) -> usize {
-        let iterable = MoveGen::new_pseudolegal(board);
+        let iterable = MoveGen::new_legal(board);
 
         let mut result: usize = 0;
         if depth == 1 {

@@ -1,22 +1,30 @@
-#![doc(html_root_url = "https://jordanbray.github.io/chess/")]
-//! # Rust Chess Library
-//! This is a chess move generation library for rust.  It is designed to be fast, so that it can be
-//! used in a chess engine or UI without performance issues.
+//! # Reconnaissance Blind Chess + Fast Chess Move Generation
 //!
-//! ## Example
+//! This crate is a fork of [`jordanbray/chess`](https://github.com/jordanbray/chess)
+//! that adds a Reconnaissance Blind Chess (RBC) rules engine and player
+//! framework on top of the original fast bitboard move generator.
 //!
-//! This generates all the moves on the starting chess position, and checks that the number of
-//! moves is correct.
+//! ## Standard chess move generation
 //!
 //! ```
-//!
 //! use chess::{Board, MoveGen};
 //!
 //! let board = Board::default();
-//! let movegen = MoveGen::new_pseudolegal(&board);
+//! let movegen = MoveGen::new_legal(&board);
 //! assert_eq!(movegen.len(), 20);
 //! ```
 //!
+//! ## RBC
+//!
+//! See the [`rbc`] module documentation for details. The headline pieces are:
+//! - [`MoveGen::new_blind_moves`] — moves a player can request given only
+//!   knowledge of their own pieces.
+//! - [`simulate_move`], [`simulate_sense`] — the rules engine, matching the
+//!   [reconchess](https://github.com/reconnaissanceblindchess/reconchess) Python
+//!   reference.
+//! - [`Player`] trait, with [`RandomPlayer`], [`PassivePlayer`],
+//!   [`AttackerPlayer`], and [`MhtPlayer`] implementations.
+//! - [`play_rbc`] driver.
 
 mod board;
 pub use crate::board::*;
@@ -66,17 +74,11 @@ pub use crate::movegen::MoveGen;
 
 mod zobrist;
 
-// mod game;
-// pub use crate::game::{Action, Game, GameResult};
-
 mod board_builder;
 pub use crate::board_builder::BoardBuilder;
 
 mod error;
 pub use crate::error::Error;
-
-// pub mod cfr;
-// pub use crate::cfr::*;
 
 mod rbc;
 pub use crate::rbc::*;

@@ -42,27 +42,84 @@ pub const SENSE_SQUARES: [Square;36] = [
     Square::G7,
 ];
 
+/// What the active player observed when sensing a 3×3 region.
+///
+/// Each field is a [`BitBoard`] holding the squares within the sensed
+/// region that contain an opponent piece of the corresponding type. Empty
+/// squares and own pieces are not represented (they're already known to
+/// the active player). The sensing player can reconstruct the true 3×3
+/// state by combining these with their own piece locations.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SenseResult {
-    pawn: BitBoard,
-    rook: BitBoard,
-    knight: BitBoard,
-    bishop: BitBoard,
-    queen: BitBoard,
-    king: BitBoard,
+    pub pawn: BitBoard,
+    pub rook: BitBoard,
+    pub knight: BitBoard,
+    pub bishop: BitBoard,
+    pub queen: BitBoard,
+    pub king: BitBoard,
 }
 
+/// The result of a move attempt produced by the RBC rules engine.
+///
+/// `taken_move` is the move that actually occurred:
+/// - `Some(m)` where `m == requested` if the request was legal as-is.
+/// - `Some(m)` where `m != requested` if the request was modified by RBC
+///   rules (a sliding piece stopped early at an unseen blocker, or a
+///   double-pawn-push revised to a single push).
+/// - `None` if the request was illegal in-game (treated as a pass).
+///
+/// `capture_square` is the square of the captured opponent piece, if any.
+/// For en passant captures, it's the square of the captured pawn (one
+/// square in front of the dest from the capturing pawn's perspective),
+/// not the capturing pawn's destination.
 #[derive(Debug, PartialEq)]
 pub struct MoveResult {
     pub taken_move: Option<ChessMove>,
     pub capture_square: Option<Square>,
 }
 
+/// A reconnaissance blind chess player.
+///
+/// Each game half-turn proceeds in this order:
+/// 1. The driver calls [`Player::handle_opponent_capture`] with the
+///    capture square (if any) from the opponent's previous move.
+/// 2. The driver calls [`Player::choose_sense`]; the player returns the
+///    square to center the 3×3 sense window on.
+/// 3. The driver calls [`Player::handle_sense_result`] with the true
+///    3×3 contents.
+/// 4. The driver calls [`Player::choose_move`]; the player returns the
+///    requested move (or `None` to pass).
+/// 5. The driver calls [`Player::handle_move_result`] with what actually
+///    happened.
+///
+/// On the very first half-turn of the game, step 1 is skipped (there is
+/// no prior opponent move). The exact ordering is encoded in
+/// [`do_half_turn`] / [`do_move`] / [`do_sense`].
+///
+/// Players are stateful: they should remember everything they've been
+/// told to maintain an internal model of the game state. Implementations
+/// must not panic; if they cannot make a sensible decision, they should
+/// pick a safe default (e.g. `None` to pass, or any valid sense square).
 pub trait Player {
+    /// Called at the start of the player's turn (after the opponent
+    /// moved). `capture` is `Some(square)` if the opponent captured one
+    /// of the player's pieces last turn, otherwise `None`.
     fn handle_opponent_capture(&mut self, capture: &Option<Square>);
+
+    /// Return the square at which to center the 3×3 sense window.
     fn choose_sense(&mut self) -> Square;
+
+    /// Called immediately after `choose_sense` returns, with the true
+    /// state of the 3×3 sensed region restricted to opponent pieces.
     fn handle_sense_result(&mut self, sense_result: &SenseResult);
+
+    /// Return the move to request, or `None` to pass.
     fn choose_move(&mut self) -> Option<ChessMove>;
+
+    /// Called after the move is applied (or refused). `result.taken_move`
+    /// is what actually happened: it may differ from the requested move
+    /// (e.g. a sliding piece stopped early at an unseen blocker), or be
+    /// `None` if the request was illegal in-game and treated as a pass.
     fn handle_move_result(&mut self, result: &MoveResult);
 }
 
@@ -82,26 +139,34 @@ fn simulate_simple_move(board: &Board, requested_move: ChessMove) -> MoveResult 
 fn simulate_sliding_move(board: &Board, requested_move: ChessMove) -> MoveResult {
     let source = requested_move.get_source();
     let dest = requested_move.get_dest();
-    let source_bb = BitBoard::from_square(source);
-    let dest_bb = BitBoard::from_square(dest);
-    let between_bb = between(source, dest);
-    let combined_bb = source_bb ^ dest_bb ^ between_bb;
-    let blockers = board.color_combined(!board.side_to_move());
-    let mut squares: Vec<_> = combined_bb.collect();
-    if *squares.get(0).unwrap() != source {
-        squares.reverse();
+    let opponents = *board.color_combined(!board.side_to_move());
+
+    // Squares strictly between source and dest, plus the dest itself.
+    // (`between(source, dest)` excludes both endpoints.)
+    let path = between(source, dest) | BitBoard::from_square(dest);
+    let blockers_in_path = path & opponents;
+
+    if blockers_in_path == EMPTY {
+        // No opponent in the path. Move proceeds as requested.
+        return MoveResult {
+            taken_move: Some(requested_move),
+            capture_square: None,
+        };
     }
-    for square in squares.into_iter().skip(1) {
-        if BitBoard::from_square(square) & blockers != EMPTY {
-            return MoveResult {
-                taken_move: Some(ChessMove::new(source, square, None)),
-                capture_square: Some(square),
-            };
-        }
-    }
+
+    // Find the blocker closest to the source. Square indices increase A1..H8
+    // in row-major order, so when dest is at a higher index than source
+    // the closest blocker is the lowest-indexed (`trailing_zeros`); when
+    // dest is at a lower index, it's the highest-indexed (`leading_zeros`).
+    let nearest = if dest.to_int() > source.to_int() {
+        blockers_in_path.to_square()
+    } else {
+        blockers_in_path.to_msb_square()
+    };
+
     MoveResult {
-        taken_move: Some(requested_move),
-        capture_square: None,
+        taken_move: Some(ChessMove::new(source, nearest, None)),
+        capture_square: Some(nearest),
     }
 }
 
@@ -209,52 +274,164 @@ fn simulate_king_move(board: &Board, requested_move: ChessMove) -> MoveResult {
     }
 }
 
-/// This assumes the move is a valid blind move! Behavior otherwise is not defined!
+/// Determine the capture square (if any) that would result from applying
+/// `chess_move` on `board` per RBC rules. This includes the
+/// sliding-stopped-early case where a sliding-piece move runs into an
+/// opponent piece before reaching its declared destination.
 ///
-/// Note: this currently does NOT model the sliding-stopped-early case (a
-/// rook or bishop request that runs into an unseen blocker before reaching
-/// its declared destination). For that, use `simulate_move(...).capture_square`.
+/// This is a thin wrapper around [`simulate_move_unchecked`]; it exists
+/// for callers that only care about the capture square and not the rest
+/// of the `MoveResult`. The caller is responsible for passing a move that
+/// is in the player's blind-move list (i.e. a pseudo-legal move on a
+/// board with the opponent's pieces removed, or `None` to indicate a
+/// pass). For a validating variant, call
+/// `simulate_move(board, m)?.capture_square`.
 pub fn capture_square(board: &Board, chess_move: Option<ChessMove>) -> Option<Square> {
-    let Some(chess_move) = chess_move else {
-        return None;
-    };
-    let source = chess_move.get_source();
-    let dest = chess_move.get_dest();
-    // Board::en_passant() returns the just-moved pawn's square (e.g. f5
-    // after black plays f7-f5), while the capturing move's dest is the
-    // square behind that pawn (f6). So an en-passant capture is detected
-    // by checking that dest is one square forward of the ep pawn.
-    if let Some(ep_pawn) = board.en_passant() {
-        if board.piece_on(source) == Some(Piece::Pawn)
-            && dest.ubackward(board.side_to_move()) == ep_pawn
-        {
-            return Some(ep_pawn);
-        }
-    }
-    if board.piece_on(dest).is_some() {
-        Some(dest)
-    } else {
-        None
-    }
+    simulate_move_unchecked(board, chess_move).capture_square
 }
 
-/// This assumes the move is a valid blind move! Behavior otherwise is not defined!
-pub fn simulate_move(board: &Board, requested_move: Option<ChessMove>) -> MoveResult {
-    let Some(requested_move) = requested_move else {
+/// Error returned by [`simulate_move`] when the requested move is not a
+/// valid request that the rules engine can simulate.
+///
+/// These represent programmer errors (the caller passed a move that isn't
+/// in the player's blind-move list), not in-game illegal moves: an in-game
+/// illegal move (like a pawn diagonally to an empty square with no en
+/// passant) returns `Ok(MoveResult { taken_move: None, .. })` from
+/// `simulate_move` and is treated by the rules as a pass.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SimulateMoveError {
+    /// The source square is empty.
+    EmptySource,
+    /// The source square has a piece belonging to the opponent.
+    WrongColor,
+    /// The geometry of the move is impossible for the piece type (e.g.
+    /// a knight moving to a non-knight square, or a bishop moving off its
+    /// diagonal).
+    InvalidGeometry,
+}
+
+/// Simulate the result of `requested_move` on `board` per RBC rules.
+///
+/// `requested_move` is the move the active player proposes; `None` denotes
+/// a pass. The returned [`MoveResult`] contains:
+/// - `taken_move`: the move that actually occurred (may differ from the
+///   request: e.g. a sliding piece stopped early at an opponent blocker, or
+///   a double-pawn-push revised to a single push), or `None` if the request
+///   was illegal in-game (in which case it is treated as a pass).
+/// - `capture_square`: the square on which a capture occurred, if any.
+///
+/// Validates the request before simulating. For a faster path that skips
+/// validation, use [`simulate_move_unchecked`].
+pub fn simulate_move(
+    board: &Board,
+    requested_move: Option<ChessMove>,
+) -> Result<MoveResult, SimulateMoveError> {
+    let Some(m) = requested_move else {
+        return Ok(MoveResult {
+            taken_move: None,
+            capture_square: None,
+        });
+    };
+    let source = m.get_source();
+    let dest = m.get_dest();
+    let Some(piece) = board.piece_on(source) else {
+        return Err(SimulateMoveError::EmptySource);
+    };
+    if board.color_on(source) != Some(board.side_to_move()) {
+        return Err(SimulateMoveError::WrongColor);
+    }
+    // Geometry checks. We accept any move that is in the piece's blind-move
+    // set on this board. This is the same set [`MoveGen::new_blind_moves`]
+    // would emit for the source piece.
+    use crate::magic::{
+        get_bishop_moves, get_blind_pawn_moves, get_king_moves, get_knight_moves, get_rook_moves,
+    };
+    use crate::CastleRights;
+    let my_pieces = *board.color_combined(board.side_to_move());
+    let dest_bb = BitBoard::from_square(dest);
+    let valid = match piece {
+        Piece::Pawn => {
+            (get_blind_pawn_moves(source, board.side_to_move(), my_pieces) & dest_bb) != EMPTY
+        }
+        Piece::Knight => (get_knight_moves(source) & !my_pieces & dest_bb) != EMPTY,
+        Piece::Bishop => (get_bishop_moves(source, my_pieces) & !my_pieces & dest_bb) != EMPTY,
+        Piece::Rook => (get_rook_moves(source, my_pieces) & !my_pieces & dest_bb) != EMPTY,
+        Piece::Queen => {
+            ((get_bishop_moves(source, my_pieces) | get_rook_moves(source, my_pieces))
+                & !my_pieces
+                & dest_bb)
+                != EMPTY
+        }
+        Piece::King => {
+            // A king move is valid if it's a one-step king move OR a castle
+            // dest with rights and no own pieces between king and rook.
+            let one_step = (get_king_moves(source) & !my_pieces & dest_bb) != EMPTY;
+            if one_step {
+                true
+            } else {
+                let color = board.side_to_move();
+                let rights = board.castle_rights(color);
+                let kingside_dest = source.uright().uright();
+                let queenside_dest = source.uleft().uleft();
+                if rights.has_kingside()
+                    && dest == kingside_dest
+                    && (my_pieces & rights.kingside_squares(color)) == EMPTY
+                {
+                    true
+                } else if rights.has_queenside()
+                    && dest == queenside_dest
+                    && (my_pieces & rights.queenside_squares(color)) == EMPTY
+                {
+                    true
+                } else {
+                    false
+                }
+            }
+            // Note: opponent pieces between the king and rook are checked
+            // again inside simulate_king_move (it follows the reconchess
+            // is_illegal_castle algorithm using the precomputed
+            // {b,c,d}/{f,g} masks against board.combined()).
+            // Letting an "obstructed-by-opponent" castle pass the geometry
+            // check matches reconchess move_actions which uses
+            // pawn_capture_moves_on plus moves_without_opponent_pieces.
+        }
+    };
+    let _ = CastleRights::NoRights; // silence unused-import lint when match arm above is taken
+    if !valid {
+        return Err(SimulateMoveError::InvalidGeometry);
+    }
+    Ok(simulate_move_dispatch(board, m, piece))
+}
+
+/// Faster simulate_move that skips request validation. Behavior is
+/// undefined if the move is not in the player's blind-move list (it may
+/// panic on internal `unwrap`s, return a wrong result, or corrupt the
+/// returned move). Use only when you control the move source.
+#[inline]
+pub fn simulate_move_unchecked(board: &Board, requested_move: Option<ChessMove>) -> MoveResult {
+    let Some(m) = requested_move else {
         return MoveResult {
             taken_move: None,
             capture_square: None,
         };
     };
-    let source = requested_move.get_source();
-    let piece = board.piece_on(source).unwrap();
+    let source = m.get_source();
+    let piece = board.piece_on(source).expect(
+        "simulate_move_unchecked called with an empty source square; \
+         use simulate_move for validation",
+    );
+    simulate_move_dispatch(board, m, piece)
+}
+
+#[inline]
+fn simulate_move_dispatch(board: &Board, m: ChessMove, piece: Piece) -> MoveResult {
     match piece {
-        Piece::Pawn => simulate_pawn_move(board, requested_move),
-        Piece::Knight => simulate_simple_move(board, requested_move),
-        Piece::Bishop => simulate_sliding_move(board, requested_move),
-        Piece::Rook => simulate_sliding_move(board, requested_move),
-        Piece::Queen => simulate_sliding_move(board, requested_move),
-        Piece::King => simulate_king_move(board, requested_move),
+        Piece::Pawn => simulate_pawn_move(board, m),
+        Piece::Knight => simulate_simple_move(board, m),
+        Piece::Bishop => simulate_sliding_move(board, m),
+        Piece::Rook => simulate_sliding_move(board, m),
+        Piece::Queen => simulate_sliding_move(board, m),
+        Piece::King => simulate_king_move(board, m),
     }
 }
 
@@ -333,7 +510,9 @@ where
             return Err("Player requested a move that was not allowed!");
         }
     }
-    let result = simulate_move(board, requested_move);
+    // Safety: requested_move is None or was just verified to be in
+    // new_blind_moves(board).
+    let result = simulate_move_unchecked(board, requested_move);
     let move_type = match result.taken_move {
         Some(m) => {
             // Determine whether this is a "zeroing" move (pawn move or
@@ -372,9 +551,21 @@ where
     do_move(board, active, passive)
 }
 
+/// Why an RBC game ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameOverReason {
-    KingCapture(Color), // Color of the player that did the capturing (the winner)
-    IllegalMove(Color), // Color of the player that made the illegal move request (the loser)
+    /// One player captured the opponent's king. The wrapped color is the
+    /// **winning** player (the one who did the capturing).
+    KingCapture(Color),
+    /// One player requested a move that was not in the blind-move list,
+    /// disqualifying them. The wrapped color is the **losing** player
+    /// (the one who made the invalid request). This is distinct from an
+    /// in-game illegal move (e.g. pawn diagonally to empty square with
+    /// no en passant): those are silently treated as a pass and the
+    /// game continues.
+    IllegalMove(Color),
+    /// 50-move rule: the game is automatically a draw after 50 full
+    /// moves (100 half-moves) without a pawn move or a capture.
     FiftyMoveDraw,
 }
 
@@ -452,7 +643,7 @@ mod tests {
     #[test]
     fn knight_simple_move_no_capture() {
         let board = Board::default();
-        let result = simulate_move(&board, Some(cm("b1c3")));
+        let result = simulate_move_unchecked(&board, Some(cm("b1c3")));
         assert_eq!(
             result,
             MoveResult {
@@ -466,7 +657,7 @@ mod tests {
     fn knight_capture() {
         // White knight on c3, black pawn on d5; Nxd5.
         let board = fen("rnbqkbnr/ppp1pppp/8/3p4/8/2N5/PPPPPPPP/R1BQKBNR w KQkq - 0 1");
-        let result = simulate_move(&board, Some(cm("c3d5")));
+        let result = simulate_move_unchecked(&board, Some(cm("c3d5")));
         assert_eq!(
             result,
             MoveResult {
@@ -482,7 +673,7 @@ mod tests {
     fn rook_clear_path_no_capture() {
         // Empty rank 4 between a1 rook and a-file; just push the rook up.
         let board = fen("4k3/8/8/8/8/8/8/R3K3 w - - 0 1");
-        let result = simulate_move(&board, Some(cm("a1a8")));
+        let result = simulate_move_unchecked(&board, Some(cm("a1a8")));
         assert_eq!(
             result,
             MoveResult {
@@ -496,7 +687,7 @@ mod tests {
     fn rook_blocked_partway_captures_blocker() {
         // White rook a1, black knight a4. Request a1a8: should stop at a4.
         let board = fen("4k3/8/8/8/n7/8/8/R3K3 w - - 0 1");
-        let result = simulate_move(&board, Some(cm("a1a8")));
+        let result = simulate_move_unchecked(&board, Some(cm("a1a8")));
         assert_eq!(
             result,
             MoveResult {
@@ -510,7 +701,7 @@ mod tests {
     fn rook_request_descending_blocked() {
         // Test reverse iteration order: rook on a8 wants a8a1, blocker at a4.
         let board = fen("r3k3/8/8/8/N7/8/8/4K3 b - - 0 1");
-        let result = simulate_move(&board, Some(cm("a8a1")));
+        let result = simulate_move_unchecked(&board, Some(cm("a8a1")));
         assert_eq!(
             result,
             MoveResult {
@@ -524,7 +715,7 @@ mod tests {
     fn bishop_blocked_partway() {
         // White bishop c1, black piece on e3. Request c1h6: should stop at e3.
         let board = fen("4k3/8/8/8/8/4n3/8/2B1K3 w - - 0 1");
-        let result = simulate_move(&board, Some(cm("c1h6")));
+        let result = simulate_move_unchecked(&board, Some(cm("c1h6")));
         assert_eq!(
             result,
             MoveResult {
@@ -539,7 +730,7 @@ mod tests {
     #[test]
     fn pawn_push_no_capture() {
         let board = Board::default();
-        let result = simulate_move(&board, Some(cm("e2e4")));
+        let result = simulate_move_unchecked(&board, Some(cm("e2e4")));
         assert_eq!(
             result,
             MoveResult {
@@ -556,7 +747,7 @@ mod tests {
         // reconchess::revise_move would try single-push e2e3 next; that's
         // also illegal (e3 occupied). Result: pass.
         let board = fen("4k3/8/8/8/8/4n3/4P3/4K3 w - - 0 1");
-        let result = simulate_move(&board, Some(cm("e2e4")));
+        let result = simulate_move_unchecked(&board, Some(cm("e2e4")));
         assert_eq!(
             result,
             MoveResult {
@@ -572,7 +763,7 @@ mod tests {
         // reconchess::revise_move tries e2e4 (illegal: pawns can't capture
         // forward), then e2e3 (legal: e3 empty, no capture). Result: e2e3.
         let board = fen("4k3/8/8/8/4n3/8/4P3/4K3 w - - 0 1");
-        let result = simulate_move(&board, Some(cm("e2e4")));
+        let result = simulate_move_unchecked(&board, Some(cm("e2e4")));
         assert_eq!(
             result,
             MoveResult {
@@ -586,7 +777,7 @@ mod tests {
     fn pawn_single_push_blocked_is_pass() {
         // White pawn e2, black piece on e3. Single push e2e3 is illegal.
         let board = fen("4k3/8/8/8/8/4n3/4P3/4K3 w - - 0 1");
-        let result = simulate_move(&board, Some(cm("e2e3")));
+        let result = simulate_move_unchecked(&board, Some(cm("e2e3")));
         assert_eq!(
             result,
             MoveResult {
@@ -600,7 +791,7 @@ mod tests {
     fn pawn_double_push_clear_path() {
         // White pawn e2, both e3 and e4 empty. Standard double push.
         let board = Board::default();
-        let result = simulate_move(&board, Some(cm("e2e4")));
+        let result = simulate_move_unchecked(&board, Some(cm("e2e4")));
         assert_eq!(
             result,
             MoveResult {
@@ -614,7 +805,7 @@ mod tests {
     fn pawn_diagonal_into_empty_returns_no_move() {
         // White pawn e2, nothing on f3. Diagonal capture request fails silently.
         let board = fen("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
-        let result = simulate_move(&board, Some(cm("e2f3")));
+        let result = simulate_move_unchecked(&board, Some(cm("e2f3")));
         assert_eq!(
             result,
             MoveResult {
@@ -628,7 +819,7 @@ mod tests {
     fn pawn_diagonal_capture() {
         // White pawn e4, black pawn on d5. exd5.
         let board = fen("4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1");
-        let result = simulate_move(&board, Some(cm("e4d5")));
+        let result = simulate_move_unchecked(&board, Some(cm("e4d5")));
         assert_eq!(
             result,
             MoveResult {
@@ -643,7 +834,7 @@ mod tests {
         // Position after 1.e4 d5 2.e5 f5: white pawn e5, black pawn just
         // double-pushed to f5 leaving an ep square at f6.
         let board = fen("rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3");
-        let result = simulate_move(&board, Some(cm("e5f6")));
+        let result = simulate_move_unchecked(&board, Some(cm("e5f6")));
         assert_eq!(
             result,
             MoveResult {
@@ -658,7 +849,7 @@ mod tests {
     #[test]
     fn king_one_square_no_capture() {
         let board = fen("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
-        let result = simulate_move(&board, Some(cm("e1e2")));
+        let result = simulate_move_unchecked(&board, Some(cm("e1e2")));
         assert_eq!(
             result,
             MoveResult {
@@ -672,7 +863,7 @@ mod tests {
     fn king_castle_clear_path() {
         // White can castle kingside.
         let board = fen("4k3/8/8/8/8/8/8/4K2R w K - 0 1");
-        let result = simulate_move(&board, Some(cm("e1g1")));
+        let result = simulate_move_unchecked(&board, Some(cm("e1g1")));
         assert_eq!(
             result,
             MoveResult {
@@ -686,7 +877,7 @@ mod tests {
     fn king_castle_blocked_returns_no_move() {
         // White wants to castle kingside but f1 is occupied (own bishop).
         let board = fen("4k3/8/8/8/8/8/8/4KB1R w K - 0 1");
-        let result = simulate_move(&board, Some(cm("e1g1")));
+        let result = simulate_move_unchecked(&board, Some(cm("e1g1")));
         assert_eq!(
             result,
             MoveResult {
@@ -701,7 +892,7 @@ mod tests {
     #[test]
     fn none_request_is_pass() {
         let board = Board::default();
-        let result = simulate_move(&board, None);
+        let result = simulate_move_unchecked(&board, None);
         assert_eq!(
             result,
             MoveResult {
@@ -744,12 +935,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Known limitation: capture_square does not model sliding-stopped-early. \
-                Fix is to call simulate_move(...).capture_square instead."]
     fn capture_square_sliding_blocked_partway() {
-        // White rook a1 wants a1a8; black knight a4 is in the way.
-        // Real outcome: capture on a4. capture_square() currently returns
-        // None because there's nothing on a8.
+        // White rook a1 wants a1a8; black knight a4 is in the way. Per RBC
+        // rules the rook is stopped at a4 and captures the knight.
         let board = fen("4k3/8/8/8/n7/8/8/R3K3 w - - 0 1");
         assert_eq!(capture_square(&board, Some(cm("a1a8"))), Some(Square::A4));
     }
@@ -886,6 +1074,97 @@ mod tests {
         }
     }
 
+    // ---- simulate_move validation ---------------------------------------
+
+    #[test]
+    fn simulate_move_pass_is_ok() {
+        let board = Board::default();
+        let result = simulate_move(&board, None).unwrap();
+        assert_eq!(
+            result,
+            MoveResult {
+                taken_move: None,
+                capture_square: None,
+            }
+        );
+    }
+
+    #[test]
+    fn simulate_move_legal_request_is_ok() {
+        let board = Board::default();
+        let result = simulate_move(&board, Some(cm("b1c3"))).unwrap();
+        assert_eq!(result.taken_move, Some(cm("b1c3")));
+    }
+
+    #[test]
+    fn simulate_move_empty_source_errors() {
+        let board = Board::default();
+        // e3 is empty in the start position
+        let bogus = ChessMove::new(Square::E3, Square::E4, None);
+        assert_eq!(
+            simulate_move(&board, Some(bogus)),
+            Err(SimulateMoveError::EmptySource)
+        );
+    }
+
+    #[test]
+    fn simulate_move_wrong_color_errors() {
+        // White to move. e7 has a black pawn -> WrongColor.
+        let board = Board::default();
+        let bogus = ChessMove::new(Square::E7, Square::E5, None);
+        assert_eq!(
+            simulate_move(&board, Some(bogus)),
+            Err(SimulateMoveError::WrongColor)
+        );
+    }
+
+    #[test]
+    fn simulate_move_invalid_geometry_errors() {
+        // White knight on b1; b1 to b5 is not a knight move.
+        let board = Board::default();
+        let bogus = ChessMove::new(Square::B1, Square::B5, None);
+        assert_eq!(
+            simulate_move(&board, Some(bogus)),
+            Err(SimulateMoveError::InvalidGeometry)
+        );
+    }
+
+    #[test]
+    fn simulate_move_pawn_diagonal_into_empty_is_legal_request() {
+        // Pawn diagonals into empty squares are part of the blind-move list
+        // (matches reconchess pawn_capture_moves_on). simulate_move should
+        // accept the request and return a pass result, not an error.
+        let board = Board::default();
+        let m = ChessMove::new(Square::E2, Square::F3, None);
+        let result = simulate_move(&board, Some(m)).unwrap();
+        assert_eq!(
+            result,
+            MoveResult {
+                taken_move: None,
+                capture_square: None,
+            }
+        );
+    }
+
+    #[test]
+    fn simulate_move_unchecked_matches_simulate_move_for_legal_requests() {
+        // Equivalence on legal requests: unchecked path returns the same
+        // MoveResult as the checked path.
+        let cases: &[(&str, &str)] = &[
+            ("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "e2e4"),
+            ("rnbqkbnr/ppp1pppp/8/3p4/8/2N5/PPPPPPPP/R1BQKBNR w KQkq - 0 1", "c3d5"),
+            ("4k3/8/8/8/n7/8/8/R3K3 w - - 0 1", "a1a8"),
+            ("4k3/8/8/8/8/8/8/R3K3 w Q - 0 1", "e1c1"),
+        ];
+        for (fen_str, mv) in cases {
+            let board = fen(fen_str);
+            let m = cm(mv);
+            let checked = simulate_move(&board, Some(m)).unwrap();
+            let unchecked = simulate_move_unchecked(&board, Some(m));
+            assert_eq!(checked, unchecked, "mismatch for {} {}", fen_str, mv);
+        }
+    }
+
     // ---- B11: castling-blocker check ------------------------------------
 
     #[test]
@@ -894,7 +1173,7 @@ mod tests {
         // illegal because there's a piece between the king and rook.
         // Bug B11: simulate_king_move used between(e1, c1) = {d1}, missing b1.
         let board = fen("4k3/8/8/8/8/8/8/RN2K3 w Q - 0 1");
-        let result = simulate_move(&board, Some(cm("e1c1")));
+        let result = simulate_move_unchecked(&board, Some(cm("e1c1")));
         assert_eq!(
             result,
             MoveResult {
@@ -908,7 +1187,7 @@ mod tests {
     fn queenside_castle_blocked_on_c_file_is_pass() {
         // Same bug, blocker on c1 (also missed by old between(e1,c1)).
         let board = fen("4k3/8/8/8/8/8/8/R1N1K3 w Q - 0 1");
-        let result = simulate_move(&board, Some(cm("e1c1")));
+        let result = simulate_move_unchecked(&board, Some(cm("e1c1")));
         assert_eq!(
             result,
             MoveResult {
@@ -922,7 +1201,7 @@ mod tests {
     fn queenside_castle_blocked_on_d_file_is_pass() {
         // The case the old code did catch (blocker on d1).
         let board = fen("4k3/8/8/8/8/8/8/R2NK3 w Q - 0 1");
-        let result = simulate_move(&board, Some(cm("e1c1")));
+        let result = simulate_move_unchecked(&board, Some(cm("e1c1")));
         assert_eq!(
             result,
             MoveResult {
@@ -935,7 +1214,7 @@ mod tests {
     #[test]
     fn queenside_castle_clear_path_white() {
         let board = fen("4k3/8/8/8/8/8/8/R3K3 w Q - 0 1");
-        let result = simulate_move(&board, Some(cm("e1c1")));
+        let result = simulate_move_unchecked(&board, Some(cm("e1c1")));
         assert_eq!(
             result,
             MoveResult {
@@ -948,7 +1227,7 @@ mod tests {
     #[test]
     fn queenside_castle_clear_path_black() {
         let board = fen("r3k3/8/8/8/8/8/8/4K3 b q - 0 1");
-        let result = simulate_move(&board, Some(cm("e8c8")));
+        let result = simulate_move_unchecked(&board, Some(cm("e8c8")));
         assert_eq!(
             result,
             MoveResult {
@@ -962,7 +1241,7 @@ mod tests {
     fn queenside_castle_blocked_black_b8() {
         // Symmetric B11 test for black.
         let board = fen("rn2k3/8/8/8/8/8/8/4K3 b q - 0 1");
-        let result = simulate_move(&board, Some(cm("e8c8")));
+        let result = simulate_move_unchecked(&board, Some(cm("e8c8")));
         assert_eq!(
             result,
             MoveResult {
@@ -977,7 +1256,7 @@ mod tests {
         // RBC explicitly allows castling through (and into) check. Set up
         // a position where f1 is attacked by a black rook on f8.
         let board = fen("4k1r1/8/8/8/8/8/8/4K2R w K - 0 1");
-        let result = simulate_move(&board, Some(cm("e1g1")));
+        let result = simulate_move_unchecked(&board, Some(cm("e1g1")));
         assert_eq!(
             result,
             MoveResult {

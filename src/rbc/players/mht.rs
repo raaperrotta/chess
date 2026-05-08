@@ -1,8 +1,9 @@
-use std::collections::HashMap;
+use rayon::prelude::*;
+use rustc_hash::FxHashMap;
 
 use crate::{
-    simulate_move, simulate_sense, Board, ChessMove, MoveGen, MoveResult, Player, SenseResult,
-    Square, SENSE_SQUARES,
+    simulate_move_unchecked, simulate_sense, Board, ChessMove, MoveGen, MoveResult, Player,
+    SenseResult, Square, SENSE_SQUARES,
 };
 use rand::rngs::ThreadRng;
 use rand::seq::IteratorRandom;
@@ -15,7 +16,7 @@ const MAX_BELIEF_SIZE: usize = 5_000;
 pub struct MhtPlayer {
     rng: ThreadRng,
     boards: Vec<Board>,
-    sense_partition: HashMap<SenseResult, Vec<usize>>,
+    sense_partition: FxHashMap<SenseResult, Vec<usize>>,
     requested_move: Option<ChessMove>,
     /// If true, log belief-set transitions to stderr. Off by default so
     /// running tournaments doesn't drown stdout.
@@ -23,11 +24,26 @@ pub struct MhtPlayer {
 }
 
 impl MhtPlayer {
+    /// Construct a fresh `MhtPlayer` that believes the game just started
+    /// from the standard initial position (a single hypothesis equal to
+    /// `Board::default()`).
     pub fn new() -> Self {
+        Self::with_belief(vec![Board::default()])
+    }
+
+    /// Construct a `MhtPlayer` whose initial belief set is `boards`.
+    /// Use this to start a player at an arbitrary mid-game position, or
+    /// to seed the belief set with multiple plausible positions
+    /// (e.g. after parsing a saved game where some opponent moves were
+    /// not observed).
+    ///
+    /// `boards` should be non-empty; if empty, the player will behave as
+    /// though every move is impossible.
+    pub fn with_belief(boards: Vec<Board>) -> Self {
         Self {
             rng: rand::rng(),
-            boards: vec![Board::default()],
-            sense_partition: HashMap::new(),
+            boards,
+            sense_partition: FxHashMap::default(),
             requested_move: None,
             verbose: false,
         }
@@ -74,7 +90,7 @@ impl Player for MhtPlayer {
                 capture.map(|s| s.to_string())
             );
         }
-        let mut next: HashMap<u64, Board> = HashMap::new();
+        let mut next: FxHashMap<u64, Board> = FxHashMap::default();
         for board in self.boards.iter() {
             // Enumerate every possible "taken move" the opponent could have
             // made on this hypothesis board. The opponent's request set is
@@ -82,7 +98,8 @@ impl Player for MhtPlayer {
             // simulate_move returns. We also consider the pass option
             // (requested = None or any illegal request -> taken = None).
             for requested in MoveGen::new_blind_moves(board).map(Some).chain(std::iter::once(None)) {
-                let result = simulate_move(board, requested);
+                // Safety: requested is None or comes from new_blind_moves(board).
+                let result = simulate_move_unchecked(board, requested);
                 if result.capture_square != *capture {
                     continue;
                 }
@@ -113,27 +130,42 @@ impl Player for MhtPlayer {
     fn choose_sense(&mut self) -> Square {
         // Pick the sense square that minimizes the size of the largest
         // posterior partition (worst-case information gain).
-        // Tie-break by smaller mean partition size (Shannon-like preference).
+        // Tie-break by smaller sum-of-squares of partition sizes (a
+        // proxy for expected/Shannon partition size).
+        //
+        // Each candidate square's partition is independent of the others,
+        // so we evaluate them in parallel and reduce to find the best.
+        let boards = &self.boards;
+        let candidates: Vec<(Square, FxHashMap<SenseResult, Vec<usize>>, usize, usize)> =
+            SENSE_SQUARES
+                .par_iter()
+                .map(|&square| {
+                    let mut partition: FxHashMap<SenseResult, Vec<usize>> =
+                        FxHashMap::default();
+                    for (i, board) in boards.iter().enumerate() {
+                        let r = simulate_sense(board, square);
+                        partition.entry(r).or_default().push(i);
+                    }
+                    let max = partition.values().map(|v| v.len()).max().unwrap_or(0);
+                    let sumsq: usize = partition.values().map(|v| v.len() * v.len()).sum();
+                    (square, partition, max, sumsq)
+                })
+                .collect();
+        // Reduce: pick (min max, then min sumsq, then first by SENSE_SQUARES order).
         let mut best_square = Square::A1;
         let mut best_max = usize::MAX;
-        let mut best_mean_x_2: usize = usize::MAX;
-        for square in SENSE_SQUARES {
-            let mut partition: HashMap<SenseResult, Vec<usize>> = HashMap::new();
-            for (i, board) in self.boards.iter().enumerate() {
-                let r = simulate_sense(board, square);
-                partition.entry(r).or_default().push(i);
-            }
-            let max = partition.values().map(|v| v.len()).max().unwrap_or(0);
-            // Use sum-of-squares as a proxy for expected partition size.
-            let sumsq: usize = partition.values().map(|v| v.len() * v.len()).sum();
-            let better = max < best_max || (max == best_max && sumsq < best_mean_x_2);
+        let mut best_sumsq = usize::MAX;
+        let mut best_partition: FxHashMap<SenseResult, Vec<usize>> = FxHashMap::default();
+        for (square, partition, max, sumsq) in candidates {
+            let better = max < best_max || (max == best_max && sumsq < best_sumsq);
             if better {
                 best_square = square;
                 best_max = max;
-                best_mean_x_2 = sumsq;
-                self.sense_partition = partition;
+                best_sumsq = sumsq;
+                best_partition = partition;
             }
         }
+        self.sense_partition = best_partition;
         best_square
     }
 
@@ -182,7 +214,11 @@ impl Player for MhtPlayer {
         // yields exactly the observed result.
         let mut next = Vec::with_capacity(self.boards.len());
         for board in self.boards.iter() {
-            let sim = simulate_move(board, self.requested_move);
+            // Safety: self.requested_move was either None or chosen from
+            // new_blind_moves on a board with the same own-piece config
+            // as `board` (because the MHT belief set is consistent with
+            // own observations of own pieces).
+            let sim = simulate_move_unchecked(board, self.requested_move);
             if &sim != result {
                 continue;
             }

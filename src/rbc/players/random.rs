@@ -7,10 +7,19 @@ pub struct RandomPlayer {
     board: Board,
 }
 impl RandomPlayer {
+    /// Construct a `RandomPlayer` starting from the standard initial
+    /// chess position.
     pub fn new() -> Self {
+        Self::with_board(Board::default())
+    }
+
+    /// Construct a `RandomPlayer` starting from an arbitrary mid-game
+    /// position. Useful for tournament play where you want the player to
+    /// resume from a known board state, e.g. after replaying a saved game.
+    pub fn with_board(board: Board) -> Self {
         Self {
             rng: rand::rng(),
-            board: Board::default(),
+            board,
         }
     }
 }

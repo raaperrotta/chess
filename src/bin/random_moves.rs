@@ -14,7 +14,7 @@ fn main() {
     for _ in 0..num_games {
         let mut board = chess::Board::default();
         for _ in 0..max_moves_per_game {
-            let movegen = chess::MoveGen::new_pseudolegal(&board);
+            let movegen = chess::MoveGen::new_legal(&board);
             let m = match movegen.choose(&mut rng) {
                 Some(m) => m,
                 None => break,
@@ -38,7 +38,7 @@ fn main() {
     for _ in 0..num_games {
         let mut board = chess::Board::default();
         for _ in 0..max_moves_per_game {
-            let movegen = chess::MoveGen::new_pseudolegal(&board);
+            let movegen = chess::MoveGen::new_legal(&board);
             let m = match movegen.choose(&mut rng) {
                 Some(m) => m,
                 None => break,
@@ -62,7 +62,7 @@ fn main() {
     for _ in 0..num_games {
         let mut board = chess::Board::default();
         for _ in 0..max_moves_per_game {
-            let movegen: Vec<_> = chess::MoveGen::new_pseudolegal(&board).collect();
+            let movegen: Vec<_> = chess::MoveGen::new_legal(&board).collect();
             let m = match movegen.into_iter().choose(&mut rng) {
                 Some(m) => m,
                 None => break,

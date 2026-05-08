@@ -1,10 +1,17 @@
-# A Fast Chess Library In Rust
+# A Fast Chess Library In Rust (with Reconnaissance Blind Chess)
 
 [![Build Status](https://travis-ci.org/jordanbray/chess.svg?branch=master)](https://travis-ci.org/jordanbray/chess)
 [![crates.io](https://img.shields.io/crates/v/chess.svg)](https://crates.io/crates/chess)
 [![docs.rs](https://docs.rs/chess/badge.svg)](https://jordanbray.github.io/chess/chess/)
 
 This library handles the process of move generation within a chess engine or chess UI.
+
+> **About this fork:** the `rbc` branch of this repository extends the upstream library with a
+> [Reconnaissance Blind Chess](https://rbc.jhuapl.edu/gameRules) (RBC) rules engine and player
+> framework. RBC is a chess variant in which players cannot see their opponent's pieces; each
+> turn they sense a 3×3 region of the board, then propose a move (which may be modified by the
+> rules engine if it runs into an unseen piece). See the [RBC section](#reconnaissance-blind-chess)
+> below.
 
 This library follows semver for version numbering in the format MAJOR.MINOR.PATCH.  That means:
 
@@ -168,6 +175,50 @@ This is not a chess engine, just the move generator.  This is not a chess UI, ju
 ## API Documentation
 
 ... is available at https://jordanbray.github.io/chess/chess/.
+
+## Reconnaissance Blind Chess
+
+The `rbc` branch adds a [Reconnaissance Blind Chess](https://rbc.jhuapl.edu/gameRules) rules
+engine on top of the move generator. Rules-engine behavior is cross-validated against the
+canonical [reconchess](https://github.com/reconnaissanceblindchess/reconchess) Python
+implementation via a JSON corpus (`tests/data/rbc_corpus.json`).
+
+### Quick start
+
+```rust
+use chess::{play_rbc, GameOverReason, MhtPlayer, RandomPlayer};
+
+let mut white = RandomPlayer::new();
+let mut black = MhtPlayer::new();
+match play_rbc(&mut white, &mut black) {
+    GameOverReason::KingCapture(c) => println!("{:?} wins", c),
+    GameOverReason::IllegalMove(c) => println!("{:?} disqualified", c),
+    GameOverReason::FiftyMoveDraw => println!("draw"),
+}
+```
+
+### What's provided
+
+- `MoveGen::new_blind_moves` — the move-request set a player can choose from with only
+  knowledge of their own pieces (matches reconchess `move_actions`).
+- `simulate_move` (validating) and `simulate_move_unchecked` (fast path) — the RBC rules
+  engine: applies a move request, returns the actual taken move and any capture square,
+  including the sliding-stopped-early and revised-double-push cases.
+- `simulate_sense` — applies a 3×3 sense to a board.
+- `Player` trait with `RandomPlayer`, `PassivePlayer`, `AttackerPlayer`, and `MhtPlayer`
+  (a multi-hypothesis tracker).
+- `play_rbc` driver and `do_sense` / `do_move` / `do_half_turn` building blocks.
+
+### Differences from upstream chess rules
+
+This branch removes the notion of check (consistent with RBC). `Board` validity checks no
+longer detect "the king could be captured next move"; `MoveGen::new_legal` does still filter
+moves that leave one's king in check, but `Board::is_sane()` does not reject positions that
+would be illegal in standard chess for check-related reasons.
+
+The function previously named `MoveGen::new_pseudolegal` is now `MoveGen::new_legal` (the
+old name was misleading: it already filtered check-related cases, so the moves it produces
+are legal in the standard-chess sense, not pseudo-legal). A deprecated alias is provided.
 
 ## Anything Else
 

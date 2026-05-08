@@ -104,7 +104,7 @@ impl Board {
     )]
     #[inline]
     pub fn enumerate_moves(&self, moves: &mut [ChessMove; 256]) -> usize {
-        let movegen = MoveGen::new_pseudolegal(self);
+        let movegen = MoveGen::new_legal(self);
         let mut size = 0;
         for m in movegen {
             moves[size] = m;
@@ -793,7 +793,7 @@ impl Board {
     /// ```
     #[inline]
     pub fn legal(&self, m: ChessMove) -> bool {
-        MoveGen::new_pseudolegal(&self).find(|x| *x == m).is_some()
+        MoveGen::new_legal(&self).find(|x| *x == m).is_some()
     }
 
     /// Make a chess move onto a new board.

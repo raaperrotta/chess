@@ -295,9 +295,23 @@ impl BitBoard {
     }
 
     /// Convert a `BitBoard` to a `Square`.  This grabs the least-significant `Square`
+    /// (the lowest-indexed square set in the bitboard, i.e. closest to A1
+    /// in board iteration order).
+    ///
+    /// Returns an undefined `Square` (specifically `Square::new(64)`, which is invalid)
+    /// if the bitboard is empty.
     #[inline]
     pub fn to_square(&self) -> Square {
         Square::new(self.0.trailing_zeros() as u8)
+    }
+
+    /// Convert a `BitBoard` to a `Square` by grabbing the most-significant
+    /// `Square` (the highest-indexed square set, i.e. closest to H8).
+    ///
+    /// Returns an undefined `Square` if the bitboard is empty.
+    #[inline]
+    pub fn to_msb_square(&self) -> Square {
+        Square::new(63u8.saturating_sub(self.0.leading_zeros() as u8))
     }
 
     /// Count the number of `Squares` set in this `BitBoard`

@@ -1,31 +1,43 @@
 [package]
 name = "chess"
-version = "3.2.0"
+version = "3.3.0-rbc"
 edition = "2018"
-authors = ["Jordan Bray <jordanbray@gmail.com>"]
-description = "This is a fast chess move generator.  It has a very good set of documentation, so you should take advantage of that.  It (now) generates all lookup tables with a build.rs file, which means that very little pseudo-legal move generation requires branching.  There are some convenience functions that are exposed to, for example, find all the squares between two squares.  This uses a copy-on-make style structure, and the Board structure is as slimmed down as possible to reduce the cost of copying the board.  There are places to improve perft-test performance further, but I instead opt to be more feature-complete to make it useful in real applications.  For example, I generate both a hash of the board and a pawn-hash of the board for use in evaluation lookup tables (using Zobrist hashing).  There are two ways to generate moves, one is faster, the other has more features that will be useful if making a chess engine.  See the documentation for more details."
+authors = [
+    "Jordan Bray <jordanbray@gmail.com>",
+    "Robert Perrotta",
+]
+description = "Reconnaissance Blind Chess (RBC) move generator and player framework, forked from jordanbray/chess. Implements the reconchess rules (castling-through-check allowed, no notion of check, sense-then-move turns) on top of the upstream fast bitboard move generator."
 build = "src/build.rs"
 
-homepage = "https://github.com/jordanbray/chess"
-repository = "https://github.com/jordanbray/chess"
+# Upstream homepage retained for context; this fork is at the URL below.
+homepage = "https://github.com/anomalyco/opencode"
+repository = "https://github.com/anomalyco/opencode"
 readme = "README.md"
-keywords = ["chess", "move", "generator"]
+keywords = ["chess", "rbc", "reconchess", "reconnaissance", "move-generator"]
 license = "MIT"
-documentation = "https://jordanbray.github.io/chess/chess/index.html"
 
 [dependencies]
 arrayvec = "0.7.2"
+# nodrop is deprecated upstream in favor of MaybeUninit; keeping for now
+# as it is used by the move-list ArrayVec wrapper.
 nodrop = "0.1.14"
+# failure is deprecated upstream in favor of thiserror; keeping for now
+# to minimize churn during the RBC migration.
 failure = "0.1.6"
 num-format = "0.4.4"
 rand = "0.9.0-alpha.0"
 rayon = "1.9.0"
 indicatif = {version = "0.17.8", features = ["rayon"]}
+rustc-hash = "2"
 
 [profile.release]
 opt-level = 3
 debug = false
 
+# Note: dev/test are kept at opt-level=3 because the lookup-table generation
+# in build.rs and the move-generation hot paths are slow enough at lower
+# levels that running tests becomes painful. If you want faster incremental
+# compiles at the cost of slower test runs, drop these to 1.
 [profile.dev]
 opt-level = 3
 debug = true
@@ -33,7 +45,8 @@ debug = true
 [profile.test]
 opt-level = 3
 
-# always optimize build script, because it takes a long time to run unoptimized
+# Always optimize the build script, because it takes a long time to run
+# unoptimized.
 [profile.dev.build-override]
 opt-level = 3
 [profile.release.build-override]
@@ -42,13 +55,11 @@ opt-level = 3
 opt-level = 3
 
 [build-dependencies]
-rand = { version = "0.7.2", default_features = false, features = ["small_rng"] }
+rand = { version = "0.7.2", default-features = false, features = ["small_rng"] }
 failure = "0.1.6"
 
-[[bin]]
-name = "random_moves"
-path = "src/bin/random_moves.rs"
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
-[[bin]]
-name = "pawn_moves"
-path = "src/bin/pawn_moves.rs"
+# All other binaries in src/bin/ are auto-discovered by cargo.

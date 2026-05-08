@@ -257,15 +257,24 @@ impl Square {
         Square::make_square(self.get_rank().down(), self.get_file())
     }
 
-    /// If there is a square to the left of me, return that. If not, wrap around to the other side.
+    /// Return the square one file to the left, **wrapping around the
+    /// board** when called on the A file.
+    ///
+    /// The `u` prefix stands for "unchecked" — there is no `Option`-returning
+    /// safety net. If the source is on the A file, the result is the H file
+    /// of the same rank, *not* an "off the board" indicator. Use [`Square::left`]
+    /// for the checked variant.
+    ///
+    /// # Wrapping
+    /// `A` &rarr; `H` (within the same rank).
     ///
     /// ```
     /// use chess::{Square, Rank, File};
     ///
     /// let sq = Square::make_square(Rank::Seventh, File::B);
-    ///
     /// assert_eq!(sq.uleft(), Square::make_square(Rank::Seventh, File::A));
     ///
+    /// // Wrap-around at the A file:
     /// assert_eq!(sq.uleft().uleft(), Square::make_square(Rank::Seventh, File::H));
     /// ```
     #[inline]
@@ -273,16 +282,24 @@ impl Square {
         Square::make_square(self.get_rank(), self.get_file().left())
     }
 
-    /// If there is a square to the right of me, return that.  If not, wrap around to the other
-    /// side.
+    /// Return the square one file to the right, **wrapping around the
+    /// board** when called on the H file.
+    ///
+    /// The `u` prefix stands for "unchecked" — there is no `Option`-returning
+    /// safety net. If the source is on the H file, the result is the A file
+    /// of the same rank, *not* an "off the board" indicator. Use [`Square::right`]
+    /// for the checked variant.
+    ///
+    /// # Wrapping
+    /// `H` &rarr; `A` (within the same rank).
     ///
     /// ```
     /// use chess::{Square, Rank, File};
     ///
     /// let sq = Square::make_square(Rank::Seventh, File::G);
-    ///
     /// assert_eq!(sq.uright(), Square::make_square(Rank::Seventh, File::H));
     ///
+    /// // Wrap-around at the H file:
     /// assert_eq!(sq.uright().uright(), Square::make_square(Rank::Seventh, File::A));
     /// ```
     #[inline]
@@ -290,20 +307,28 @@ impl Square {
         Square::make_square(self.get_rank(), self.get_file().right())
     }
 
-    /// If there is a square "forward", given my color, return that.  If not, wrap around to the
-    /// other side.
+    /// Return the square one rank "forward" relative to `color`, **wrapping
+    /// around the board** when called on the back rank for `color`.
+    ///
+    /// The `u` prefix stands for "unchecked" — there is no `Option`-returning
+    /// safety net. From a White piece on rank 8 (or a Black piece on rank 1),
+    /// the result is the opposite back rank, *not* an "off the board"
+    /// indicator. Use [`Square::forward`] for the checked variant.
+    ///
+    /// # Wrapping
+    /// White on rank 8 &rarr; rank 1; Black on rank 1 &rarr; rank 8.
     ///
     /// ```
     /// use chess::{Square, Rank, File, Color};
     ///
     /// let mut sq = Square::make_square(Rank::Seventh, File::D);
-    ///
     /// assert_eq!(sq.uforward(Color::White), Square::make_square(Rank::Eighth, File::D));
+    /// // Wrap-around past rank 8:
     /// assert_eq!(sq.uforward(Color::White).uforward(Color::White), Square::make_square(Rank::First, File::D));
     ///
     /// sq = Square::make_square(Rank::Second, File::D);
-    ///
     /// assert_eq!(sq.uforward(Color::Black), Square::make_square(Rank::First, File::D));
+    /// // Wrap-around past rank 1:
     /// assert_eq!(sq.uforward(Color::Black).uforward(Color::Black), Square::make_square(Rank::Eighth, File::D));
     /// ```
     #[inline]
@@ -314,19 +339,24 @@ impl Square {
         }
     }
 
-    /// If there is a square "backward", given my color, return that.  If not, wrap around to the
-    /// other side.
+    /// Return the square one rank "backward" relative to `color`, **wrapping
+    /// around the board** when called on the back rank for `!color`.
+    ///
+    /// The `u` prefix stands for "unchecked" — there is no `Option`-returning
+    /// safety net. Use [`Square::backward`] for the checked variant.
+    ///
+    /// # Wrapping
+    /// Symmetric to [`Square::uforward`]: White on rank 1 &rarr; rank 8;
+    /// Black on rank 8 &rarr; rank 1.
     ///
     /// ```
     /// use chess::{Square, Rank, File, Color};
     ///
     /// let mut sq = Square::make_square(Rank::Seventh, File::D);
-    ///
     /// assert_eq!(sq.ubackward(Color::Black), Square::make_square(Rank::Eighth, File::D));
     /// assert_eq!(sq.ubackward(Color::Black).ubackward(Color::Black), Square::make_square(Rank::First, File::D));
     ///
     /// sq = Square::make_square(Rank::Second, File::D);
-    ///
     /// assert_eq!(sq.ubackward(Color::White), Square::make_square(Rank::First, File::D));
     /// assert_eq!(sq.ubackward(Color::White).ubackward(Color::White), Square::make_square(Rank::Eighth, File::D));
     /// ```

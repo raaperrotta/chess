@@ -31,12 +31,11 @@ use std::str::FromStr;
 /// // You can index the position by the square:
 /// assert_eq!(position[Square::A1], Some((Piece::King, Color::White)));
 ///
-/// // White is in check, but that's ok, it's white's turn to move.
+/// // The position passes sanity checks (kings exist, no overlap, etc.).
+/// // Note: this RBC fork does NOT enforce check-related legality, so a
+/// // position where the side-to-move could capture the opponent's king
+/// // on the next move is still considered "sane".
 /// assert!(Board::try_from(&position).is_ok());
-///
-/// // Now White is in check, but Black is ready to move.  This position is invalid.
-/// position.side_to_move(Color::Black);
-/// assert!(Board::try_from(position).is_err());
 ///
 /// // One liners are possible with the builder pattern.
 /// use std::convert::TryInto;

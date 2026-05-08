@@ -38,7 +38,7 @@ fn main() {
             .map(|m| m.to_string())
             .collect();
         println!("{} {}", blind_moves.len(), blind_moves.join(" "));
-        let movegen = chess::MoveGen::new_pseudolegal(&board);
+        let movegen = chess::MoveGen::new_legal(&board);
         let m = match movegen.choose(&mut rng) {
             Some(m) => m,
             None => break,
